@@ -1,0 +1,871 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Newly Launched Store Performance Dashboard</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+  :root{
+    --bg:#EFF7F6;
+    --surface:#FFFFFF;
+    --surface-2:#DCEEED;
+    --surface-3:#C7E3E1;
+    --border:#AACFCD;
+    --text:#0F1E24;
+    --text-dim:#3A6570;
+    --text-faint:#6E9298;
+    --accent:#2F6373;
+    --accent-2:#1F4A53;
+    --complement:#437F8C;
+    --complement-2:#2F6373;
+    --danger:#DC2626;
+    --danger-dark:#7F1D1D;
+    --warn:#CA8A04;
+    --good:#16A34A;
+  }
+  *{box-sizing:border-box;}
+  @media (prefers-reduced-motion: reduce){
+    *{animation-duration:0.001ms !important; transition-duration:0.001ms !important;}
+  }
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 600px at 4% -10%, rgba(47,99,115,0.10), transparent),
+      radial-gradient(1000px 550px at 100% 0%, rgba(169,217,214,0.35), transparent),
+      var(--bg);
+    color:var(--text);
+    font-family:'IBM Plex Sans', sans-serif;
+    -webkit-font-smoothing:antialiased;
+  }
+  a{color:var(--accent-2);}
+
+  header.top{
+    padding:20px 24px 14px;
+    border-bottom:1px solid var(--border);
+    position:sticky; top:0; z-index:40;
+    background:rgba(239,247,246,0.9);
+    backdrop-filter:blur(10px);
+  }
+  .top-row{display:flex; align-items:flex-start; justify-content:space-between; flex-wrap:wrap; gap:14px; max-width:1520px; margin:0 auto;}
+  .title-and-range{display:flex; flex-direction:column; gap:4px;}
+  .title-block h1{
+    font-family:'Space Grotesk', sans-serif;
+    font-weight:700;
+    font-size:1.45rem;
+    margin:0;
+    letter-spacing:-0.01em;
+    color:var(--text);
+  }
+  .title-block h1 span{color:var(--accent-2);}
+  #dateRangeLabel{
+    font-family:'IBM Plex Mono', monospace;
+    font-size:0.8rem;
+    color:var(--text-dim);
+    display:flex;
+    align-items:center;
+    gap:6px;
+  }
+  #dateRangeLabel b{color:var(--text); font-weight:600;}
+  #dateRangeLabel .arrow{color:var(--text-faint);}
+  #dateRangeLabel .custom-flag{
+    background:color-mix(in srgb, var(--accent) 14%, var(--surface));
+    color:var(--accent-2); border:1px solid color-mix(in srgb, var(--accent) 35%, var(--border));
+    padding:1px 7px; border-radius:999px; font-size:0.68rem; font-weight:600;
+  }
+  .meta{font-family:'IBM Plex Mono', monospace; font-size:0.78rem; color:var(--text-dim); text-align:right;}
+  .meta b{color:var(--text);}
+
+  main{max-width:1520px; margin:0 auto; padding:22px 24px 24px;}
+
+  /* KPI cards */
+  .kpi-row{display:grid; grid-template-columns:repeat(auto-fit, minmax(210px,1fr)); gap:14px; margin-bottom:18px;}
+  .kpi-city-group{margin-bottom:7px;}
+  .kpi-city-name{font-size:0.7rem; font-weight:700; color:#fff;}
+  .kpi-city-stores{margin-top:3px; display:flex; flex-wrap:wrap; gap:3px;}
+  .kpi-card{perspective:1200px; height:126px; cursor:pointer;}
+  .kpi-flip{position:relative; width:100%; height:100%; transition:transform 0.5s cubic-bezier(.4,.2,.2,1); transform-style:preserve-3d;}
+  .kpi-card.flipped .kpi-flip{transform:rotateY(180deg);}
+  .kpi-face{
+    position:absolute; inset:0; backface-visibility:hidden;
+    border-radius:14px; padding:16px 18px;
+    display:flex; flex-direction:column; justify-content:space-between;
+    border:1px solid var(--border);
+  }
+  .kpi-front{background:linear-gradient(135deg, var(--surface), var(--surface-2)); border-left:4px solid var(--kpi-color, var(--accent)); box-shadow:0 1px 2px rgba(20,30,40,0.04);}
+  .kpi-back{background:linear-gradient(135deg, var(--kpi-color, var(--accent)), var(--kpi-color-2, var(--accent-2))); transform:rotateY(180deg); color:#fff; border:none;}
+  .kpi-top-row{display:flex; align-items:center; justify-content:space-between;}
+  .kpi-label{font-size:0.72rem; text-transform:uppercase; letter-spacing:0.05em; color:var(--text-faint); font-family:'Space Grotesk', sans-serif; font-weight:600;}
+  .kpi-back .kpi-label{color:rgba(255,255,255,0.85);}
+  .kpi-flag{font-size:0.62rem; color:var(--text-faint); font-family:'IBM Plex Mono';}
+  .kpi-back .kpi-flag{color:rgba(255,255,255,0.7);}
+  .kpi-value{font-family:'IBM Plex Mono', monospace; font-size:1.65rem; font-weight:500; color:var(--text);}
+  .kpi-back .kpi-value{color:#fff;}
+  .kpi-hint{font-size:0.68rem; color:var(--text-faint);}
+  .kpi-back .kpi-hint{color:rgba(255,255,255,0.8);}
+  .kpi-store-chip{display:inline-block; padding:2px 7px; border-radius:999px; background:rgba(255,255,255,0.18); margin:2px 4px 0 0; font-family:'IBM Plex Mono', monospace; font-size:0.66rem;}
+
+  /* score badges */
+  .score-cell{min-width:150px;}
+  .score-badge{
+    display:inline-flex; align-items:center; gap:6px; cursor:pointer;
+    padding:5px 10px; border-radius:8px; border:1px solid var(--border);
+    font-family:'IBM Plex Mono', monospace; font-size:0.8rem; font-weight:600;
+    background:var(--surface-2); color:var(--text);
+  }
+  .score-badge .score-dot{width:8px; height:8px; border-radius:50%;}
+  .score-badge.score-3{background:rgba(22,163,74,0.14); border-color:var(--good); color:#0F5C2E;}
+  .score-badge.score-3 .score-dot{background:var(--good);}
+  .score-badge.score-2{background:rgba(202,138,4,0.16); border-color:var(--warn); color:#7A5A03;}
+  .score-badge.score-2 .score-dot{background:var(--warn);}
+  .score-badge.score-1{background:rgba(220,38,38,0.13); border-color:var(--danger); color:var(--danger);}
+  .score-badge.score-1 .score-dot{background:var(--danger);}
+  .score-badge.score-0{background:rgba(127,29,29,0.22); border-color:var(--danger-dark); color:var(--danger-dark);}
+  .score-badge.score-0 .score-dot{background:var(--danger-dark);}
+  .score-badge:hover{border-color:var(--accent);}
+  .score-detail{
+    display:none; margin-top:7px; font-size:0.72rem; color:var(--text-dim);
+    font-family:'IBM Plex Mono', monospace; line-height:1.7;
+  }
+  .score-detail.open{display:block;}
+  .score-detail .ok{color:var(--good);}
+  .score-detail .bad{color:var(--danger); font-weight:600;}
+  .city-issue-mini{margin-left:auto; font-family:'IBM Plex Mono', monospace; font-size:0.76rem; color:var(--text-dim); display:flex; gap:14px; flex-wrap:wrap;}
+  .city-issue-mini b{color:var(--complement-2); font-weight:700;}
+  .city-issue-mini .clean b{color:var(--good);}
+
+  /* controls */
+  .controls{display:flex; gap:14px; margin-bottom:16px; flex-wrap:wrap; align-items:flex-end; background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:12px 16px; box-shadow:0 1px 2px rgba(20,30,40,0.03);}
+  .date-filter{display:flex; gap:8px; align-items:flex-end; flex-wrap:wrap; padding-right:14px; border-right:1px solid var(--border);}
+  .date-filter label{font-size:0.68rem; color:var(--text-dim); display:flex; flex-direction:column; gap:3px; text-transform:uppercase; letter-spacing:0.03em;}
+  .date-filter input[type=date]{
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+    padding:6px 8px; border-radius:7px; font-family:'IBM Plex Mono'; font-size:0.78rem;
+  }
+  .search-wrap{display:flex; flex-direction:column; gap:3px;}
+  .search-wrap label{font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.03em;}
+  .controls input[type=text]{
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text);
+    padding:7px 12px; border-radius:8px; font-family:'IBM Plex Sans'; font-size:0.83rem;
+    min-width:190px;
+  }
+  .btn-group{display:flex; gap:8px; margin-left:auto; flex-wrap:wrap;}
+  .controls button{
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text-dim);
+    padding:8px 13px; border-radius:8px; font-size:0.78rem; cursor:pointer; white-space:nowrap;
+    font-family:inherit;
+  }
+  .controls button:hover{color:var(--text); border-color:var(--accent);}
+  .controls button.primary{background:var(--accent); color:#fff; border-color:var(--accent);}
+  .controls button.primary:hover{background:var(--accent-2); border-color:var(--accent-2);}
+  .controls *:focus-visible{outline:2px solid var(--accent); outline-offset:1px;}
+
+  /* accordion */
+  .city-block{background:var(--surface); border:1px solid var(--border); border-radius:12px; margin-bottom:22px; overflow:hidden; box-shadow:0 2px 10px rgba(0,0,0,0.25);}
+  .city-header{
+    width:100%; border:none; cursor:pointer;
+    background:var(--city-color-dark);
+    display:flex; align-items:center; gap:10px; padding:15px 18px;
+    border-left:5px solid var(--city-color-dark);
+    font-family:inherit; text-align:left;
+  }
+  .city-header:hover{filter:brightness(1.08);}
+  .city-header .chevron{color:#fff;}
+  .city-header .city-name{color:#fff;}
+  .city-header .city-count{color:rgba(255,255,255,0.75);}
+  .city-header .city-issue-mini{color:rgba(255,255,255,0.85);}
+  .city-header .city-issue-mini b{color:#fff;}
+  .city-header .city-issue-mini .clean b{color:#CFF7EA;}
+  .city-header .info-dot{background:rgba(255,255,255,0.18); color:#fff;}
+  .chevron{display:inline-flex; color:var(--city-color); font-size:0.75rem; transition:transform 0.25s ease; transform:rotate(90deg); width:14px;}
+  .city-block.collapsed .chevron{transform:rotate(0deg);}
+  .city-name{font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:1.02rem; color:var(--accent-2);}
+  .city-count{color:var(--text-dim); font-size:0.76rem; font-family:'IBM Plex Mono', monospace;}
+  .city-mini{margin-left:auto; font-family:'IBM Plex Mono', monospace; font-size:0.8rem; color:var(--text-dim); display:flex; gap:14px;}
+  .city-mini b{color:var(--text); font-weight:600;}
+  .city-body{max-height:2400px; overflow:hidden; transition:max-height 0.35s ease; border-top:1px solid var(--border);}
+  .city-block.collapsed .city-body{max-height:0 !important; border-top:none;}
+
+  .table-scroll{overflow-x:auto;}
+  table{width:100%; border-collapse:collapse; font-size:0.82rem; min-width:1300px;}
+  thead th{
+    text-align:left; padding:10px 16px; background:var(--surface-2);
+    border-bottom:1px solid var(--border); white-space:nowrap;
+  }
+  .store-head{position:sticky; left:0; z-index:5; background:var(--surface-2); min-width:225px;}
+  th.group-start{border-left:1px solid var(--border);}
+  .mh-name{font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; display:flex; align-items:center; gap:5px;}
+  .mh-sub{display:flex; gap:16px; font-family:'IBM Plex Mono', monospace; font-size:0.63rem; color:var(--text-faint); margin-top:5px;}
+  .mh-sub span{min-width:46px;}
+  .info-dot{
+    width:14px; height:14px; border-radius:50%; background:var(--surface-3); color:var(--text-faint);
+    display:inline-flex; align-items:center; justify-content:center; font-size:0.62rem; font-weight:700;
+    cursor:help; flex-shrink:0;
+  }
+  .info-dot:hover{background:var(--accent); color:#fff;}
+
+  tbody tr.store-row{border-bottom:1px solid var(--border); background:var(--surface);}
+  tbody tr.store-row:nth-child(even){background:var(--surface-2);}
+  tbody tr.store-row:hover{background:color-mix(in srgb, var(--city-color) 14%, var(--surface));}
+  tbody tr.city-summary-row{background:var(--city-color-dark); border-bottom:2px solid var(--border); font-weight:600; color:#fff;}
+  tbody tr.city-summary-row .store-sub{color:rgba(255,255,255,0.75);}
+  tbody tr.city-summary-row .metric-pair .primary{color:#fff;}
+  tbody tr.city-summary-row .metric-pair .secondary{color:rgba(255,255,255,0.78);}
+  tbody tr.city-summary-row .metric-pair .sep{color:rgba(255,255,255,0.55);}
+  tbody tr.city-summary-row .info-dot{background:rgba(255,255,255,0.2); color:#fff;}
+  tbody tr.city-summary-row .ok{color:#CFF7EA;}
+  tbody tr.city-summary-row .bad{color:#FFD3B8; font-weight:700;}
+  td{padding:11px 16px; vertical-align:middle;}
+  .store-name{position:sticky; left:0; background:inherit; font-weight:500; white-space:nowrap;}
+  tbody tr.store-row:hover .store-name{background:color-mix(in srgb, var(--city-color) 14%, var(--surface));}
+  .store-sub{display:block; font-size:0.68rem; color:var(--text-dim); font-weight:500; margin-top:3px; font-family:'IBM Plex Mono', monospace;}
+
+  .metric-pair{display:flex; flex-direction:row; align-items:baseline; gap:7px; font-family:'IBM Plex Mono', monospace; min-width:92px; white-space:nowrap;}
+  .metric-pair .row-line{display:flex; align-items:baseline; gap:6px;}
+  .metric-pair .tag{font-size:0.6rem; color:var(--text-faint); width:16px; flex-shrink:0;}
+  .metric-pair .sep{color:var(--text-faint); font-size:0.72rem;}
+  .metric-pair .primary{font-size:0.86rem; font-weight:600; color:var(--text);}
+  .metric-pair .secondary{font-size:0.76rem; color:var(--text-dim);}
+  .metric-pair-cell.metric-fail{background:rgba(220,38,38,0.08); border-radius:6px;}
+  .metric-pair-cell.metric-fail .metric-pair .secondary{color:var(--danger); font-weight:700;}
+  tbody tr.city-summary-row .metric-pair-cell.metric-fail{background:rgba(255,211,184,0.16); border-radius:6px;}
+  tbody tr.city-summary-row .metric-pair-cell.metric-fail .metric-pair .secondary{color:#FFD3B8;}
+  .opd-cell .metric-pair .primary{color:var(--accent); font-weight:700;}
+
+  .ramp-cell{min-width:104px;}
+  .ramp-track{width:76px; height:6px; border-radius:4px; background:var(--surface-3); border:1px solid var(--border); overflow:hidden; margin-bottom:4px;}
+  .ramp-fill{height:100%; background:var(--city-color); border-radius:4px;}
+  .ramp-label{font-size:0.66rem; color:var(--text-dim); font-weight:500; font-family:'IBM Plex Mono', monospace;}
+  tr.no-data{opacity:0.55;}
+  tr.no-data .store-sub{color:var(--danger);}
+  tr.hidden-by-search{display:none;}
+
+  footer{max-width:1520px; margin:22px auto 60px; padding:0 24px; color:var(--text-faint); font-size:0.76rem; line-height:1.65;}
+  footer h2{font-family:'Space Grotesk', sans-serif; font-size:0.85rem; color:var(--text-dim); margin:0 0 8px;}
+  footer ul{margin:0 0 18px; padding-left:18px;}
+  footer li{margin-bottom:4px;}
+  .legend{display:flex; gap:18px; flex-wrap:wrap; margin-top:6px; align-items:center;}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .legend b{color:var(--text-dim);}
+
+  #tooltipBox{
+    position:fixed; z-index:100; max-width:280px; background:#132F3D; color:#fff;
+    font-size:0.74rem; line-height:1.45; padding:9px 12px; border-radius:8px; pointer-events:none;
+    box-shadow:0 8px 20px rgba(15,30,36,0.25); opacity:0; transition:opacity 0.12s ease;
+  }
+  #tooltipBox.show{opacity:1;}
+
+  @media (max-width: 640px){
+    header.top{padding:16px 16px 12px;}
+    main{padding:16px;}
+    .kpi-row{grid-template-columns:1fr;}
+    .top-row{flex-direction:column;}
+    .meta{text-align:left;}
+    .controls{flex-direction:column; align-items:stretch;}
+    .date-filter{border-right:none; border-bottom:1px solid var(--border); padding-right:0; padding-bottom:10px;}
+    .btn-group{margin-left:0;}
+  }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-row">
+    <div class="title-and-range">
+      <div class="title-block"><h1>Newly Launched Store Performance <span>Dashboard</span></h1></div>
+      <div id="dateRangeLabel"></div>
+    </div>
+    <div class="meta"><b>18</b> stores across <b>8</b> cities</div>
+  </div>
+</header>
+
+<main>
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <div class="controls">
+    <div class="date-filter">
+      <label>From
+        <input type="date" id="fromDate">
+      </label>
+      <label>To
+        <input type="date" id="toDate">
+      </label>
+      <button class="primary" id="applyRangeBtn">Apply</button>
+      <button id="resetRangeBtn">Reset to full range</button>
+    </div>
+    <div class="search-wrap">
+      <label>Search stores</label>
+      <input type="text" id="storeFilter" placeholder="Type a store name...">
+    </div>
+    <div class="btn-group">
+      <button id="expandAllBtn">Expand all</button>
+      <button id="collapseAllBtn">Collapse all</button>
+      <button class="primary" id="exportCsvBtn">Export Excel</button>
+    </div>
+  </div>
+
+  <div id="cityContainer"></div>
+</main>
+
+<footer>
+  <h2>Reading the numbers</h2>
+  <div class="legend">
+    <span><b>FTD</b> = the value on the latest day with data on/before your selected "To" date</span>
+    <span><b>MTD</b> = totals/averages across your selected From&rarr;To range (defaults to the full available range, so every month in your data is included)</span>
+    <span>Hover the <span class="info-dot">i</span> next to any column for its exact formula &middot; click a store's score to see which metric is the problem</span>
+  </div>
+  <h2 style="margin-top:18px;">Open items &mdash; pending manager sign-off</h2>
+  <ul id="flagItems"></ul>
+  <p>Generated by generate_report.py from files in <code>input_files/</code>. Drop fresh exports in that folder and re-run <code>run_report.bat</code> (which calls run.py) to refresh.</p>
+</footer>
+
+<div id="tooltipBox"></div>
+
+<script>
+const DATA = {"generated_note": "Computed client-side from daily rows -- see METRIC_DEFS tooltips for formulas.", "global_min_date": "2026-06-04", "global_max_date": "2026-07-05", "city_colors": {"Bengaluru": "#A9D9D6", "Chennai": "#8FC9C8", "Delhi": "#74B4B9", "Gurgaon": "#5A9BA5", "Kolkata": "#437F8C", "Mumbai": "#2F6373", "Noida": "#20495A", "Pune": "#132F3D"}, "city_colors_dark": {"Bengaluru": "#40A199", "Chennai": "#369B94", "Delhi": "#2C938E", "Gurgaon": "#228A87", "Kolkata": "#197F7D", "Mumbai": "#127474", "Noida": "#0C6A6A", "Pune": "#07615F"}, "metric_defs": [{"key": "abv", "label": "ABV", "kind": "inr", "tip": "Average Bill Value = MTD Sales ÷ MTD Orders (computed on the totals, not averaged day by day). FTD = that day's Sales ÷ Orders."}, {"key": "otr", "label": "OTR", "kind": "pct", "scored": "otr", "tip": "The 10'OTR(50%) column from the Performance export. MTD = plain average across days this month so far. FTD = the value on the latest day. Scored 0 if MTD < 50%, else 1."}, {"key": "perishable", "label": "Perishable", "kind": "pct", "scored": "perishable", "tip": "The 100(88%) column from the Performance export. MTD = plain average across days this month so far. FTD = the value on the latest day. Scored 0 if MTD < 88%, else 1."}, {"key": "non_perishable", "label": "Non-Perishable", "kind": "pct", "scored": "non_perishable", "tip": "The 1K(92%) column from the Performance export. MTD = plain average across days this month so far. FTD = the value on the latest day. Scored 0 if MTD < 92%, else 1."}, {"key": "in_store", "label": "In-Store Time", "kind": "min", "tip": "open_to_process + process_to_pack + pack_to_bin, from the SLA export. MTD = average across days this month so far. FTD = the value on the latest matching day."}, {"key": "out_store", "label": "Bin to RTS", "kind": "min", "tip": "bin_to_rts, from the SLA export. MTD = average across days this month so far. FTD = the value on the latest matching day."}], "opd_tip": "Orders Per Day since launch = cumulative Orders from the store's launch date through the date you've selected, divided by the number of days since launch. Moving the date changes what counts as “today” for this calculation.", "city_row_tip": "City figures sum the real components (Sales, Orders) across its stores first, then derive ratios (ABV, OPD) from those totals -- not an average of store-level percentages. OTR / Perishable / Non-Perishable / In-Store / Bin to RTS have no finer-grained numerator in the source files, so the city figure is an Orders-weighted average across stores instead.", "score_tip": "Each store earns 1 point per metric if its MTD value meets the target, else 0 (OTR ≥ 50%, Perishable ≥ 88%, Non-Perishable ≥ 92%) -- 3 points max. Click a store's score to see which metric(s) are the problem.", "score_thresholds": {"otr_min": 0.5, "perishable_min": 0.88, "non_perishable_min": 0.92}, "no_offer_kpi": {"total_cities": 8, "total_stores": 18, "cities": ["Bengaluru", "Chennai", "Mumbai", "Noida"], "city_store_counts": {"Bengaluru": 5, "Chennai": 3, "Mumbai": 1, "Noida": 2}, "city_store_ids": {"Bengaluru": ["DS-IBBLR-Chamrajpet", "DS-IBBLR-Immadihalli", "DS-IBBLR-Kalyannagar", "DS-IBBLR-Kodathi", "DS-IBBLR-Pattandur"], "Chennai": ["DS-IBCHN-AshokNagar", "DS-IBCHN-Kolathur", "DS-IBCHN-Vengaivasal"], "Mumbai": ["DS-IBMUM-Kashimira"], "Noida": ["DS-IBNOI-SanjayNagar", "DS-IBNOI-SuryaNagar"]}, "store_count": 11, "store_ids": ["DS-IBBLR-Chamrajpet", "DS-IBBLR-Immadihalli", "DS-IBBLR-Kalyannagar", "DS-IBBLR-Kodathi", "DS-IBBLR-Pattandur", "DS-IBCHN-AshokNagar", "DS-IBCHN-Kolathur", "DS-IBCHN-Vengaivasal", "DS-IBMUM-Kashimira", "DS-IBNOI-SanjayNagar", "DS-IBNOI-SuryaNagar"]}, "stores": [{"store_id": "DS-IBBLR-HolidayVill", "city": "Bengaluru", "launch_date": "2026-06-18", "rows": [{"date": "2026-06-18", "sales": 72802.26, "orders": 160.0, "otr": 0.830188679, "perishable": 0.663795518, "non_perishable": 0.912354805, "in_store_time": 3.8952, "out_store_time": 0.631}, {"date": "2026-06-19", "sales": 152656.26, "orders": 335.0, "otr": 0.834355828, "perishable": 0.911960784, "non_perishable": 0.918947368, "in_store_time": 2.753, "out_store_time": 1.6035}, {"date": "2026-06-20", "sales": 182857.91, "orders": 341.0, "otr": 0.870481928, "perishable": 0.826808279, "non_perishable": 0.846315789, "in_store_time": 2.6687, "out_store_time": 0.4416}, {"date": "2026-06-21", "sales": 220033.91, "orders": 403.0, "otr": 0.756892231, "perishable": 0.814278264, "non_perishable": 0.931578947, "in_store_time": 2.8694, "out_store_time": 2.5401}, {"date": "2026-06-22", "sales": 170925.72, "orders": 361.0, "otr": 0.768361582, "perishable": 0.824144764, "non_perishable": 0.925263158, "in_store_time": 3.6183000000000005, "out_store_time": 1.3123}, {"date": "2026-06-23", "sales": 195183.29, "orders": 360.0, "otr": 0.727011494, "perishable": 0.792720067, "non_perishable": 0.941478439, "in_store_time": 3.192, "out_store_time": 2.79}, {"date": "2026-06-24", "sales": 197743.35, "orders": 409.0, "otr": 0.8275, "perishable": 0.859940966, "non_perishable": 0.951844262, "in_store_time": 3.5758, "out_store_time": 0.4723}, {"date": "2026-06-25", "sales": 219109.52, "orders": 451.0, "otr": 0.856502242, "perishable": 0.838182585, "non_perishable": 0.941658137, "in_store_time": 2.7969999999999997, "out_store_time": 0.4072}, {"date": "2026-06-26", "sales": 206331.44, "orders": 440.0, "otr": 0.852534562, "perishable": 0.834429686, "non_perishable": 0.954034729, "in_store_time": 2.4874, "out_store_time": 0.4708}, {"date": "2026-06-27", "sales": 189576.82, "orders": 412.0, "otr": 0.858560794, "perishable": 0.853099304, "non_perishable": 0.95087001, "in_store_time": 2.2711, "out_store_time": 0.3606}, {"date": "2026-06-28", "sales": 258160.36, "orders": 494.0, "otr": 0.868312757, "perishable": 0.880803289, "non_perishable": 0.921267894, "in_store_time": 2.9242000000000004, "out_store_time": 0.5075}, {"date": "2026-06-29", "sales": 201324.38, "orders": 420.0, "otr": 0.876513317, "perishable": 0.824119755, "non_perishable": 0.900817996, "in_store_time": 2.6451000000000002, "out_store_time": 0.6258}, {"date": "2026-06-30", "sales": 203920.05, "orders": 410.0, "otr": 0.804511278, "perishable": 0.883470377, "non_perishable": 0.892638037, "in_store_time": 2.8263000000000003, "out_store_time": 1.36}, {"date": "2026-07-01", "sales": 259324.44, "orders": 472.0, "otr": 0.831533477, "perishable": 0.883215686, "non_perishable": 0.849037487, "in_store_time": 2.8824, "out_store_time": 0.8607}, {"date": "2026-07-02", "sales": 235471.19, "orders": 419.0, "otr": 0.781021898, "perishable": 0.931735294, "non_perishable": 0.841253792, "in_store_time": 9.0132, "out_store_time": 5.4253}, {"date": "2026-07-03", "sales": 251781.6, "orders": 462.0, "otr": 0.825503356, "perishable": 0.905166667, "non_perishable": 0.815975733, "in_store_time": 3.0545, "out_store_time": 0.5974}, {"date": "2026-07-04", "sales": 238087.13, "orders": 435.0, "otr": 0.849187935, "perishable": 0.889715686, "non_perishable": 0.78463094, "in_store_time": 2.7197, "out_store_time": 0.4679}, {"date": "2026-07-05", "sales": 299001.28, "orders": 508.0, "otr": 0.649298597, "perishable": 0.863107843, "non_perishable": 0.824419778, "in_store_time": 2.9911999999999996, "out_store_time": 3.4808}]}, {"store_id": "DS-IBBLR-Pattandur", "city": "Bengaluru", "launch_date": "2026-06-30", "rows": [{"date": "2026-06-30", "sales": 126587.0, "orders": 247.0, "otr": 0.37295082, "perishable": 0.631966726, "non_perishable": 0.911798396, "in_store_time": 5.1348, "out_store_time": 7.1234}, {"date": "2026-07-01", "sales": 422181.71, "orders": 870.0, "otr": 0.206771463, "perishable": 0.593680445, "non_perishable": 0.927272727, "in_store_time": 5.025499999999999, "out_store_time": 10.8706}, {"date": "2026-07-02", "sales": 323621.32, "orders": 708.0, "otr": 0.344927536, "perishable": 0.867119155, "non_perishable": 0.894240838, "in_store_time": 13.4224, "out_store_time": 22.0671}, {"date": "2026-07-03", "sales": 372173.2, "orders": 675.0, "otr": 0.428571429, "perishable": 0.857996324, "non_perishable": 0.865087539, "in_store_time": 5.5886000000000005, "out_store_time": 8.0798}, {"date": "2026-07-04", "sales": 482872.95, "orders": 998.0, "otr": 0.240778689, "perishable": 0.809823529, "non_perishable": 0.776639344, "in_store_time": 5.4395, "out_store_time": 8.7984}, {"date": "2026-07-05", "sales": 467788.2, "orders": 945.0, "otr": 0.148471616, "perishable": 0.894176471, "non_perishable": 0.726347915, "in_store_time": 6.4620999999999995, "out_store_time": 11.2337}]}, {"store_id": "DS-IBBLR-Chamrajpet", "city": "Bengaluru", "launch_date": "2026-06-30", "rows": [{"date": "2026-06-30", "sales": 873.0, "orders": 3.0, "otr": 1.0, "perishable": 0.232145816, "non_perishable": 0.80071599, "in_store_time": 4.8099, "out_store_time": 0.2766}, {"date": "2026-07-01", "sales": 24854.63, "orders": 73.0, "otr": 0.474576271, "perishable": 0.974358974, "non_perishable": 0.982269504, "in_store_time": 9.0765, "out_store_time": 20.8787}, {"date": "2026-07-02", "sales": 31078.81, "orders": 66.0, "otr": 0.896551724, "perishable": 0.98374373, "non_perishable": 0.955579632, "in_store_time": 11.022300000000001, "out_store_time": 1.6705}, {"date": "2026-07-03", "sales": 27268.59, "orders": 66.0, "otr": 0.870967742, "perishable": 0.980656532, "non_perishable": 0.961175236, "in_store_time": 3.7679, "out_store_time": 0.3245}, {"date": "2026-07-04", "sales": 62525.81, "orders": 140.0, "otr": 0.897058824, "perishable": 0.994305803, "non_perishable": 0.976141079, "in_store_time": 2.7645999999999997, "out_store_time": 0.3749}, {"date": "2026-07-05", "sales": 33778.46, "orders": 88.0, "otr": 0.953488372, "perishable": 0.931501287, "non_perishable": 0.980432544, "in_store_time": 2.2714000000000003, "out_store_time": 0.3154}]}, {"store_id": "DS-IBBLR-Immadihalli", "city": "Bengaluru", "launch_date": "2026-06-30", "rows": [{"date": "2026-06-30", "sales": 19093.49, "orders": 33.0, "otr": 0.0, "perishable": 0.375566789, "non_perishable": 0.773584906, "in_store_time": 5.6219, "out_store_time": 32.2147}, {"date": "2026-07-01", "sales": 318934.72, "orders": 593.0, "otr": 0.416513761, "perishable": 0.832433521, "non_perishable": 0.972527473, "in_store_time": 5.120900000000001, "out_store_time": 6.725}, {"date": "2026-07-02", "sales": 284886.62, "orders": 505.0, "otr": 0.617647059, "perishable": 0.845556266, "non_perishable": 0.948108108, "in_store_time": 15.767, "out_store_time": 9.7821}, {"date": "2026-07-03", "sales": 309529.04, "orders": 534.0, "otr": 0.516194332, "perishable": 0.916309232, "non_perishable": 0.921383648, "in_store_time": 5.6293, "out_store_time": 2.4377}, {"date": "2026-07-04", "sales": 362911.68, "orders": 622.0, "otr": 0.478187919, "perishable": 0.90235094, "non_perishable": 0.943064182, "in_store_time": 5.2054, "out_store_time": 3.15}, {"date": "2026-07-05", "sales": 390406.62, "orders": 674.0, "otr": 0.449455677, "perishable": 0.955362745, "non_perishable": 0.953751285, "in_store_time": 6.6174, "out_store_time": 2.4055}]}, {"store_id": "DS-IBBLR-Kalyannagar", "city": "Bengaluru", "launch_date": "2026-06-04", "rows": [{"date": "2026-06-04", "sales": 112068.03, "orders": 194.0, "otr": 0.436170213, "perishable": 0.932802768, "non_perishable": 0.924528302, "in_store_time": 4.2739, "out_store_time": 6.1849}, {"date": "2026-06-05", "sales": 183454.82, "orders": 325.0, "otr": 0.547169811, "perishable": 0.838298545, "non_perishable": 0.870288248, "in_store_time": 4.1295, "out_store_time": 3.864}, {"date": "2026-06-06", "sales": 228361.98, "orders": 388.0, "otr": 0.470744681, "perishable": 0.745445261, "non_perishable": 0.73072747, "in_store_time": 3.8078000000000003, "out_store_time": 3.8933}, {"date": "2026-06-07", "sales": 237944.57, "orders": 439.0, "otr": 0.230952381, "perishable": 0.880371732, "non_perishable": 0.776947705, "in_store_time": 5.4366, "out_store_time": 9.7097}, {"date": "2026-06-08", "sales": 198326.53, "orders": 386.0, "otr": 0.380697051, "perishable": 0.842279412, "non_perishable": 0.875920084, "in_store_time": 6.031699999999999, "out_store_time": 5.3295}, {"date": "2026-06-09", "sales": 215468.16, "orders": 375.0, "otr": 0.570637119, "perishable": 0.788378268, "non_perishable": 0.861602497, "in_store_time": 4.5817, "out_store_time": 1.84}, {"date": "2026-06-10", "sales": 213504.74, "orders": 379.0, "otr": 0.588555858, "perishable": 0.816697304, "non_perishable": 0.89119171, "in_store_time": 4.646, "out_store_time": 0.5922}, {"date": "2026-06-11", "sales": 213422.77, "orders": 432.0, "otr": 0.655421687, "perishable": 0.913408905, "non_perishable": 0.94953656, "in_store_time": 3.6393, "out_store_time": 0.4531}, {"date": "2026-06-12", "sales": 205920.16, "orders": 390.0, "otr": 0.703125, "perishable": 0.892790033, "non_perishable": 0.947100712, "in_store_time": 3.7135000000000002, "out_store_time": 0.4504}, {"date": "2026-06-13", "sales": 249830.49, "orders": 478.0, "otr": 0.679824561, "perishable": 0.913051471, "non_perishable": 0.956300813, "in_store_time": 3.8448, "out_store_time": 0.9369}, {"date": "2026-06-14", "sales": 234729.77, "orders": 452.0, "otr": 0.548314607, "perishable": 0.880249183, "non_perishable": 0.959349593, "in_store_time": 4.2171, "out_store_time": 2.1827}, {"date": "2026-06-15", "sales": 227561.19, "orders": 401.0, "otr": 0.668393782, "perishable": 0.874019608, "non_perishable": 0.95030426, "in_store_time": 3.674, "out_store_time": 0.6146}, {"date": "2026-06-16", "sales": 204875.57, "orders": 380.0, "otr": 0.737752161, "perishable": 0.898376225, "non_perishable": 0.95845998, "in_store_time": 3.1658999999999997, "out_store_time": 0.4158}, {"date": "2026-06-17", "sales": 226683.79, "orders": 418.0, "otr": 0.739659367, "perishable": 0.940340557, "non_perishable": 0.95845998, "in_store_time": 2.9400999999999997, "out_store_time": 0.4362}, {"date": "2026-06-18", "sales": 207637.89, "orders": 438.0, "otr": 0.827830189, "perishable": 0.921455108, "non_perishable": 0.974747475, "in_store_time": 2.8084, "out_store_time": 0.383}, {"date": "2026-06-19", "sales": 184853.9, "orders": 359.0, "otr": 0.755747126, "perishable": 0.949824561, "non_perishable": 0.981818182, "in_store_time": 2.9491, "out_store_time": 0.3927}, {"date": "2026-06-20", "sales": 253134.93, "orders": 477.0, "otr": 0.701943844, "perishable": 0.922889577, "non_perishable": 0.972727273, "in_store_time": 2.6658, "out_store_time": 0.4106}, {"date": "2026-06-21", "sales": 281730.79, "orders": 490.0, "otr": 0.805439331, "perishable": 0.886470588, "non_perishable": 0.966700303, "in_store_time": 2.9548, "out_store_time": 0.4079}, {"date": "2026-06-22", "sales": 218627.97, "orders": 403.0, "otr": 0.737913486, "perishable": 0.869649123, "non_perishable": 0.962663976, "in_store_time": 3.1625, "out_store_time": 0.3694}, {"date": "2026-06-23", "sales": 212198.45, "orders": 415.0, "otr": 0.783251232, "perishable": 0.907478098, "non_perishable": 0.966700303, "in_store_time": 2.8192, "out_store_time": 0.3553}, {"date": "2026-06-24", "sales": 195320.64, "orders": 419.0, "otr": 0.790865385, "perishable": 0.958187317, "non_perishable": 0.957618567, "in_store_time": 2.8102000000000005, "out_store_time": 0.3797}, {"date": "2026-06-25", "sales": 184222.66, "orders": 380.0, "otr": 0.789893617, "perishable": 0.930663329, "non_perishable": 0.954591322, "in_store_time": 2.4071000000000002, "out_store_time": 0.3868}, {"date": "2026-06-26", "sales": 222713.57, "orders": 417.0, "otr": 0.819306931, "perishable": 0.907206925, "non_perishable": 0.955600404, "in_store_time": 2.6329, "out_store_time": 0.3974}, {"date": "2026-06-27", "sales": 194566.55, "orders": 391.0, "otr": 0.807291667, "perishable": 0.912724239, "non_perishable": 0.955420466, "in_store_time": 2.4288, "out_store_time": 0.3578}, {"date": "2026-06-28", "sales": 230647.35, "orders": 450.0, "otr": 0.774049217, "perishable": 0.916426783, "non_perishable": 0.936170213, "in_store_time": 2.8438, "out_store_time": 0.3619}, {"date": "2026-06-29", "sales": 212832.8, "orders": 404.0, "otr": 0.805486284, "perishable": 0.890571548, "non_perishable": 0.933130699, "in_store_time": 2.9381, "out_store_time": 0.3556}, {"date": "2026-06-30", "sales": 218864.75, "orders": 410.0, "otr": 0.752475248, "perishable": 0.854880414, "non_perishable": 0.93414387, "in_store_time": 2.7257000000000002, "out_store_time": 0.348}, {"date": "2026-07-01", "sales": 306067.05, "orders": 493.0, "otr": 0.65560166, "perishable": 0.892156863, "non_perishable": 0.895582329, "in_store_time": 4.7418, "out_store_time": 1.5063}, {"date": "2026-07-02", "sales": 299934.58, "orders": 487.0, "otr": 0.705263158, "perishable": 0.842656863, "non_perishable": 0.888554217, "in_store_time": 11.6728, "out_store_time": 2.8678}, {"date": "2026-07-03", "sales": 241931.91, "orders": 413.0, "otr": 0.620347395, "perishable": 0.862656863, "non_perishable": 0.888554217, "in_store_time": 3.9273000000000002, "out_store_time": 2.0484}, {"date": "2026-07-04", "sales": 288405.67, "orders": 508.0, "otr": 0.753535354, "perishable": 0.933029412, "non_perishable": 0.863590772, "in_store_time": 3.5217, "out_store_time": 0.3846}, {"date": "2026-07-05", "sales": 296416.79, "orders": 550.0, "otr": 0.756410256, "perishable": 0.922362745, "non_perishable": 0.864593781, "in_store_time": 3.2195, "out_store_time": 0.6732}]}, {"store_id": "DS-IBBLR-Kodathi", "city": "Bengaluru", "launch_date": "2026-06-29", "rows": [{"date": "2026-06-29", "sales": 13047.24, "orders": 32.0, "otr": 0.4375, "perishable": null, "non_perishable": 0.998696219, "in_store_time": 4.042, "out_store_time": 2.141}, {"date": "2026-06-30", "sales": 28135.18, "orders": 65.0, "otr": 0.634920635, "perishable": 0.927857484, "non_perishable": 0.996811902, "in_store_time": 3.8878999999999997, "out_store_time": 1.6629}, {"date": "2026-07-01", "sales": 41981.01, "orders": 123.0, "otr": 0.495798319, "perishable": 0.906741573, "non_perishable": 0.989451477, "in_store_time": 5.222700000000001, "out_store_time": 12.9115}, {"date": "2026-07-02", "sales": 32569.47, "orders": 101.0, "otr": 0.35483871, "perishable": 0.869240196, "non_perishable": 0.984583762, "in_store_time": 9.960500000000001, "out_store_time": 33.314}, {"date": "2026-07-03", "sales": 39511.42, "orders": 103.0, "otr": 0.696969697, "perishable": 0.922172707, "non_perishable": 0.988764045, "in_store_time": 3.2239000000000004, "out_store_time": 0.5474}, {"date": "2026-07-04", "sales": 46703.9, "orders": 138.0, "otr": 0.613138686, "perishable": 0.906318083, "non_perishable": 0.98378926, "in_store_time": 3.0775, "out_store_time": 1.0776}, {"date": "2026-07-05", "sales": 46755.84, "orders": 122.0, "otr": 0.680327869, "perishable": 0.888205882, "non_perishable": 0.991911021, "in_store_time": 3.9796, "out_store_time": 1.6659}]}, {"store_id": "DS-IBCHN-NwVilivakam", "city": "Chennai", "launch_date": "2026-06-09", "rows": [{"date": "2026-06-09", "sales": 91388.08, "orders": 244.0, "otr": 0.368200837, "perishable": 0.836333333, "non_perishable": 0.9625, "in_store_time": 4.3528, "out_store_time": 4.4546}, {"date": "2026-06-10", "sales": 168026.19, "orders": 458.0, "otr": 0.235159817, "perishable": 0.718783069, "non_perishable": 0.889583333, "in_store_time": 11.3754, "out_store_time": 3.0706}, {"date": "2026-06-11", "sales": 147080.4, "orders": 384.0, "otr": 0.532258065, "perishable": 0.709601677, "non_perishable": 0.836798337, "in_store_time": 4.0611999999999995, "out_store_time": 1.8768}, {"date": "2026-06-12", "sales": 157476.68, "orders": 413.0, "otr": 0.53117207, "perishable": 0.718062397, "non_perishable": 0.82194617, "in_store_time": 3.9377000000000004, "out_store_time": 2.0429}, {"date": "2026-06-13", "sales": 197583.46, "orders": 508.0, "otr": 0.5, "perishable": 0.739152299, "non_perishable": 0.778697001, "in_store_time": 4.0755, "out_store_time": 2.4505}, {"date": "2026-06-14", "sales": 191945.67, "orders": 437.0, "otr": 0.528708134, "perishable": 0.684308292, "non_perishable": 0.746130031, "in_store_time": 3.9528, "out_store_time": 2.6119}, {"date": "2026-06-15", "sales": 165881.65, "orders": 403.0, "otr": 0.457070707, "perishable": 0.747588259, "non_perishable": 0.802672148, "in_store_time": 5.0083, "out_store_time": 1.6901}, {"date": "2026-06-16", "sales": 172000.44, "orders": 415.0, "otr": 0.449871465, "perishable": 0.752196223, "non_perishable": 0.846311475, "in_store_time": 4.6011999999999995, "out_store_time": 2.6304}, {"date": "2026-06-17", "sales": 164633.71, "orders": 422.0, "otr": 0.535980149, "perishable": 0.841697455, "non_perishable": 0.912512716, "in_store_time": 4.5482, "out_store_time": 2.0221}, {"date": "2026-06-18", "sales": 173314.57, "orders": 436.0, "otr": 0.466019417, "perishable": 0.845504926, "non_perishable": 0.940101523, "in_store_time": 4.9847, "out_store_time": 3.9782}, {"date": "2026-06-19", "sales": 166349.57, "orders": 406.0, "otr": 0.607692308, "perishable": 0.878468801, "non_perishable": 0.939086294, "in_store_time": 4.007, "out_store_time": 1.3149}, {"date": "2026-06-20", "sales": 181933.05, "orders": 465.0, "otr": 0.562642369, "perishable": 0.861309524, "non_perishable": 0.94822335, "in_store_time": 4.2681, "out_store_time": 1.5712}, {"date": "2026-06-21", "sales": 222801.16, "orders": 559.0, "otr": 0.459510358, "perishable": 0.760344828, "non_perishable": 0.949238579, "in_store_time": 4.4687, "out_store_time": 4.0879}, {"date": "2026-06-22", "sales": 174518.22, "orders": 447.0, "otr": 0.550480769, "perishable": 0.875656814, "non_perishable": 0.943147208, "in_store_time": 4.1537, "out_store_time": 1.9895}, {"date": "2026-06-23", "sales": 173241.28, "orders": 458.0, "otr": 0.510440835, "perishable": 0.808487274, "non_perishable": 0.930964467, "in_store_time": 4.4969, "out_store_time": 4.0882}, {"date": "2026-06-24", "sales": 149188.2, "orders": 459.0, "otr": 0.611494253, "perishable": 0.873830049, "non_perishable": 0.923857868, "in_store_time": 3.7727999999999997, "out_store_time": 2.0049}, {"date": "2026-06-25", "sales": 157245.95, "orders": 434.0, "otr": 0.483333333, "perishable": 0.929474548, "non_perishable": 0.892385787, "in_store_time": 4.2119, "out_store_time": 2.9189}, {"date": "2026-06-26", "sales": 209176.6, "orders": 542.0, "otr": 0.508637236, "perishable": 0.892364532, "non_perishable": 0.924643585, "in_store_time": 6.0189, "out_store_time": 1.9228}, {"date": "2026-06-27", "sales": 209690.75, "orders": 528.0, "otr": 0.612774451, "perishable": 0.824866585, "non_perishable": 0.926530612, "in_store_time": 4.313, "out_store_time": 1.1125}, {"date": "2026-06-28", "sales": 227482.74, "orders": 635.0, "otr": 0.429042904, "perishable": 0.793339491, "non_perishable": 0.920408163, "in_store_time": 4.4192, "out_store_time": 3.4426}, {"date": "2026-06-29", "sales": 183875.35, "orders": 480.0, "otr": 0.570194384, "perishable": 0.854854269, "non_perishable": 0.917346939, "in_store_time": 4.4796000000000005, "out_store_time": 1.543}, {"date": "2026-06-30", "sales": 206891.63, "orders": 493.0, "otr": 0.455696203, "perishable": 0.81492429, "non_perishable": 0.928644241, "in_store_time": 5.157500000000001, "out_store_time": 2.5344}, {"date": "2026-07-01", "sales": 257173.98, "orders": 633.0, "otr": 0.389078498, "perishable": 0.817464539, "non_perishable": 0.908080808, "in_store_time": 4.6781999999999995, "out_store_time": 5.8214}, {"date": "2026-07-02", "sales": 259607.12, "orders": 564.0, "otr": 0.455769231, "perishable": 0.761682427, "non_perishable": 0.894046418, "in_store_time": 17.328, "out_store_time": 11.5224}, {"date": "2026-07-03", "sales": 236152.13, "orders": 554.0, "otr": 0.477927063, "perishable": 0.760066982, "non_perishable": 0.87790111, "in_store_time": 5.5391, "out_store_time": 2.9406}, {"date": "2026-07-04", "sales": 309899.07, "orders": 743.0, "otr": 0.413843888, "perishable": 0.820065012, "non_perishable": 0.858728557, "in_store_time": 5.088699999999999, "out_store_time": 3.3668}, {"date": "2026-07-05", "sales": 304671.24, "orders": 717.0, "otr": 0.4, "perishable": 0.774162727, "non_perishable": 0.856710394, "in_store_time": 5.5137, "out_store_time": 3.6666}]}, {"store_id": "DS-IBCHN-AshokNagar", "city": "Chennai", "launch_date": "2026-06-30", "rows": [{"date": "2026-06-30", "sales": 45251.69, "orders": 88.0, "otr": 0.014285714, "perishable": 0.279503676, "non_perishable": 0.975257732, "in_store_time": 23.9714, "out_store_time": 22.6944}, {"date": "2026-07-01", "sales": 329774.07, "orders": 601.0, "otr": 0.225806452, "perishable": 0.635232843, "non_perishable": 0.951695786, "in_store_time": 7.5112000000000005, "out_store_time": 9.0314}, {"date": "2026-07-02", "sales": 331208.5, "orders": 571.0, "otr": 0.298969072, "perishable": 0.777919051, "non_perishable": 0.912909836, "in_store_time": 17.561700000000002, "out_store_time": 15.2556}, {"date": "2026-07-03", "sales": 360176.41, "orders": 570.0, "otr": 0.113948919, "perishable": 0.863924436, "non_perishable": 0.887309645, "in_store_time": 13.8613, "out_store_time": 3.9752}, {"date": "2026-07-04", "sales": 332036.29, "orders": 679.0, "otr": 0.323101777, "perishable": 0.878388495, "non_perishable": 0.826395939, "in_store_time": 7.042199999999999, "out_store_time": 4.5496}, {"date": "2026-07-05", "sales": 376850.25, "orders": 692.0, "otr": 0.083743842, "perishable": 0.877344366, "non_perishable": 0.734279919, "in_store_time": 7.1606, "out_store_time": 14.425}]}, {"store_id": "DS-IBCHN-Kolathur", "city": "Chennai", "launch_date": "2026-06-30", "rows": [{"date": "2026-06-30", "sales": 4079.76, "orders": 15.0, "otr": 0.642857143, "perishable": 0.198914566, "non_perishable": 0.958241758, "in_store_time": 2.1527, "out_store_time": 6.5254}, {"date": "2026-07-01", "sales": 73535.35, "orders": 137.0, "otr": 0.694656489, "perishable": 0.790495181, "non_perishable": 0.985587583, "in_store_time": 4.0386, "out_store_time": 3.4689}, {"date": "2026-07-02", "sales": 39768.74, "orders": 82.0, "otr": 0.555555556, "perishable": 0.873397635, "non_perishable": 0.967776584, "in_store_time": 11.222199999999999, "out_store_time": 15.3254}, {"date": "2026-07-03", "sales": 41474.08, "orders": 89.0, "otr": 0.827160494, "perishable": 0.970769856, "non_perishable": 0.98661174, "in_store_time": 3.8574, "out_store_time": 0.3632}, {"date": "2026-07-04", "sales": 52026.6, "orders": 102.0, "otr": 0.861386139, "perishable": 0.950797872, "non_perishable": 0.98973306, "in_store_time": 3.1480999999999995, "out_store_time": 0.446}, {"date": "2026-07-05", "sales": 33372.14, "orders": 75.0, "otr": 0.901408451, "perishable": 0.954974389, "non_perishable": 0.981651376, "in_store_time": 2.2887, "out_store_time": 0.3652}]}, {"store_id": "DS-IBCHN-Vengaivasal", "city": "Chennai", "launch_date": "2026-06-30", "rows": [{"date": "2026-06-30", "sales": 27186.28, "orders": 51.0, "otr": 0.26, "perishable": 0.208198352, "non_perishable": 0.899784483, "in_store_time": 10.4918, "out_store_time": 9.535}, {"date": "2026-07-01", "sales": 288515.14, "orders": 463.0, "otr": 0.242696629, "perishable": 0.752233115, "non_perishable": 0.948164147, "in_store_time": 7.5851, "out_store_time": 5.1308}, {"date": "2026-07-02", "sales": 263031.44, "orders": 466.0, "otr": 0.403547672, "perishable": 0.726256534, "non_perishable": 0.871822034, "in_store_time": 17.2299, "out_store_time": 6.8899}, {"date": "2026-07-03", "sales": 213222.93, "orders": 438.0, "otr": 0.494117647, "perishable": 0.909919228, "non_perishable": 0.890608875, "in_store_time": 4.6257, "out_store_time": 2.2644}, {"date": "2026-07-04", "sales": 268925.77, "orders": 475.0, "otr": 0.656050955, "perishable": 0.870330969, "non_perishable": 0.928716904, "in_store_time": 3.8145, "out_store_time": 1.1062}, {"date": "2026-07-05", "sales": 300901.95, "orders": 575.0, "otr": 0.331550802, "perishable": 0.793311663, "non_perishable": 0.919110212, "in_store_time": 3.8575000000000004, "out_store_time": 6.6801}]}, {"store_id": "DS-IBDEL-ModelTown", "city": "Delhi", "launch_date": "2026-06-08", "rows": [{"date": "2026-06-08", "sales": 3685.47, "orders": 8.0, "otr": 1.0, "perishable": 0.891722689, "non_perishable": 0.998872604, "in_store_time": 2.4774, "out_store_time": 0.3037}, {"date": "2026-06-09", "sales": 13710.91, "orders": 31.0, "otr": 0.653846154, "perishable": 0.836633527, "non_perishable": 0.997785161, "in_store_time": 3.3018, "out_store_time": 1.2857}, {"date": "2026-06-10", "sales": 13894.57, "orders": 32.0, "otr": 0.827586207, "perishable": 0.834014623, "non_perishable": 0.996674058, "in_store_time": 2.4064, "out_store_time": 0.3965}, {"date": "2026-06-11", "sales": 37986.29, "orders": 93.0, "otr": 0.7, "perishable": 0.858561171, "non_perishable": 0.995570321, "in_store_time": 2.7538, "out_store_time": 0.5901}, {"date": "2026-06-12", "sales": 43246.4, "orders": 106.0, "otr": 0.762376238, "perishable": 0.842707494, "non_perishable": 0.987818383, "in_store_time": 2.2211, "out_store_time": 0.5367}, {"date": "2026-06-13", "sales": 56942.14, "orders": 110.0, "otr": 0.766990291, "perishable": 0.764477572, "non_perishable": 0.962382445, "in_store_time": 2.5245, "out_store_time": 0.3571}, {"date": "2026-06-14", "sales": 47395.62, "orders": 107.0, "otr": 0.86407767, "perishable": 0.833158743, "non_perishable": 0.966839378, "in_store_time": 2.14, "out_store_time": 0.3817}, {"date": "2026-06-15", "sales": 50607.32, "orders": 104.0, "otr": 0.729166667, "perishable": 0.787228042, "non_perishable": 0.974226804, "in_store_time": 2.5661, "out_store_time": 0.5721}, {"date": "2026-06-16", "sales": 37093.19, "orders": 94.0, "otr": 0.872093023, "perishable": 0.825275316, "non_perishable": 0.974226804, "in_store_time": 1.8361, "out_store_time": 0.3217}, {"date": "2026-06-17", "sales": 41718.5, "orders": 99.0, "otr": 0.869565217, "perishable": 0.924053183, "non_perishable": 0.975257732, "in_store_time": 2.1285999999999996, "out_store_time": 0.424}, {"date": "2026-06-18", "sales": 51381.18, "orders": 108.0, "otr": 0.86407767, "perishable": 0.899033038, "non_perishable": 0.965979381, "in_store_time": 2.177, "out_store_time": 0.4098}, {"date": "2026-06-19", "sales": 43015.6, "orders": 96.0, "otr": 0.862068966, "perishable": 0.88536036, "non_perishable": 0.957731959, "in_store_time": 2.3089000000000004, "out_store_time": 0.3649}, {"date": "2026-06-20", "sales": 40100.21, "orders": 75.0, "otr": 0.821917808, "perishable": 0.997429783, "non_perishable": 0.95257732, "in_store_time": 2.0847, "out_store_time": 0.3467}, {"date": "2026-06-21", "sales": 43012.88, "orders": 93.0, "otr": 0.833333333, "perishable": 0.96814397, "non_perishable": 0.965056526, "in_store_time": 1.9201000000000001, "out_store_time": 0.3325}, {"date": "2026-06-22", "sales": 45401.04, "orders": 87.0, "otr": 0.7875, "perishable": 0.952578566, "non_perishable": 0.95991778, "in_store_time": 2.3148, "out_store_time": 0.3023}, {"date": "2026-06-23", "sales": 50408.91, "orders": 118.0, "otr": 0.837837838, "perishable": 0.925691647, "non_perishable": 0.964102564, "in_store_time": 2.077, "out_store_time": 0.3452}, {"date": "2026-06-24", "sales": 38887.63, "orders": 102.0, "otr": 0.797979798, "perishable": 0.895903841, "non_perishable": 0.965128205, "in_store_time": 1.7482, "out_store_time": 0.308}, {"date": "2026-06-25", "sales": 47689.84, "orders": 118.0, "otr": 0.849557522, "perishable": 0.928007419, "non_perishable": 0.964102564, "in_store_time": 1.8947, "out_store_time": 0.3195}, {"date": "2026-06-26", "sales": 45664.08, "orders": 90.0, "otr": 0.852272727, "perishable": 0.916626921, "non_perishable": 0.971282051, "in_store_time": 2.0364, "out_store_time": 0.2921}, {"date": "2026-06-27", "sales": 51762.24, "orders": 91.0, "otr": 0.820224719, "perishable": 0.914348172, "non_perishable": 0.957688338, "in_store_time": 2.1698, "out_store_time": 0.3793}, {"date": "2026-06-28", "sales": 63346.39, "orders": 108.0, "otr": 0.882352941, "perishable": 0.929279279, "non_perishable": 0.948453608, "in_store_time": 1.9556, "out_store_time": 0.3619}, {"date": "2026-06-29", "sales": 58087.32, "orders": 88.0, "otr": 0.717647059, "perishable": 0.943865925, "non_perishable": 0.927835052, "in_store_time": 2.0172, "out_store_time": 0.9568}, {"date": "2026-06-30", "sales": 40057.68, "orders": 84.0, "otr": 0.87654321, "perishable": 0.934326974, "non_perishable": 0.949588477, "in_store_time": 2.0831999999999997, "out_store_time": 0.6056}, {"date": "2026-07-01", "sales": 86997.97, "orders": 206.0, "otr": 0.868020305, "perishable": 0.944862745, "non_perishable": 0.901639344, "in_store_time": 2.2408, "out_store_time": 0.4764}, {"date": "2026-07-02", "sales": 67209.81, "orders": 129.0, "otr": 0.841269841, "perishable": 0.900065359, "non_perishable": 0.905737705, "in_store_time": 4.4322, "out_store_time": 0.6331}, {"date": "2026-07-03", "sales": 91515.36, "orders": 163.0, "otr": 0.859060403, "perishable": 0.889594771, "non_perishable": 0.903688525, "in_store_time": 2.0799, "out_store_time": 0.3543}, {"date": "2026-07-04", "sales": 69019.19, "orders": 185.0, "otr": 0.69273743, "perishable": 0.837822497, "non_perishable": 0.893551689, "in_store_time": 2.5322999999999998, "out_store_time": 0.3531}, {"date": "2026-07-05", "sales": 88097.57, "orders": 179.0, "otr": 0.735632184, "perishable": 0.830804954, "non_perishable": 0.886386899, "in_store_time": 2.4558, "out_store_time": 0.5274}]}, {"store_id": "DS-IBGUR-Sector108", "city": "Gurgaon", "launch_date": "2026-06-25", "rows": [{"date": "2026-06-25", "sales": 1296.28, "orders": 5.0, "otr": 0.8, "perishable": 0.639440694, "non_perishable": 0.994736842, "in_store_time": 2.3, "out_store_time": 1.468}, {"date": "2026-06-26", "sales": 8697.53, "orders": 12.0, "otr": 0.666666667, "perishable": 0.935034602, "non_perishable": 0.89084507, "in_store_time": 3.7116, "out_store_time": 0.6858}, {"date": "2026-06-27", "sales": 7412.14, "orders": 14.0, "otr": 0.714285714, "perishable": 0.934300295, "non_perishable": 0.963855422, "in_store_time": 3.3162, "out_store_time": 0.53}, {"date": "2026-06-28", "sales": 12728.77, "orders": 22.0, "otr": 0.727272727, "perishable": 0.906325544, "non_perishable": 0.985869565, "in_store_time": 2.8376, "out_store_time": 0.3986}, {"date": "2026-06-29", "sales": 39961.81, "orders": 84.0, "otr": 0.280487805, "perishable": 0.820077894, "non_perishable": 0.992391304, "in_store_time": 3.0559, "out_store_time": 2.1304}, {"date": "2026-06-30", "sales": 79266.9, "orders": 126.0, "otr": 0.203252033, "perishable": 0.608470588, "non_perishable": 0.964210526, "in_store_time": 3.3634, "out_store_time": 10.9095}, {"date": "2026-07-01", "sales": 31870.45, "orders": 39.0, "otr": 0.0, "perishable": 0.647249809, "non_perishable": 0.951832461, "in_store_time": 4.8936, "out_store_time": 65.533}, {"date": "2026-07-02", "sales": 87944.58, "orders": 101.0, "otr": 0.2, "perishable": 0.870042194, "non_perishable": 0.952772074, "in_store_time": 9.5968, "out_store_time": 19.4406}, {"date": "2026-07-03", "sales": 94359.97, "orders": 140.0, "otr": 0.222222222, "perishable": 0.834044118, "non_perishable": 0.93442623, "in_store_time": 5.1872, "out_store_time": 4.0532}, {"date": "2026-07-04", "sales": 111045.13, "orders": 196.0, "otr": 0.345744681, "perishable": 0.852389706, "non_perishable": 0.901940756, "in_store_time": 3.3011000000000004, "out_store_time": 4.2264}, {"date": "2026-07-05", "sales": 121683.99, "orders": 182.0, "otr": 0.194117647, "perishable": 0.769387255, "non_perishable": 0.878942014, "in_store_time": 3.4136999999999995, "out_store_time": 9.8431}]}, {"store_id": "DS-IBKOL-NimtaBazaar", "city": "Kolkata", "launch_date": "2026-06-17", "rows": [{"date": "2026-06-17", "sales": 67431.22, "orders": 177.0, "otr": 0.610169492, "perishable": 0.785440445, "non_perishable": 0.964324324, "in_store_time": 2.6386000000000003, "out_store_time": 2.9167}, {"date": "2026-06-18", "sales": 132578.53, "orders": 325.0, "otr": 0.468944099, "perishable": 0.806749076, "non_perishable": 0.969892473, "in_store_time": 3.2366, "out_store_time": 4.3718}, {"date": "2026-06-19", "sales": 136898.83, "orders": 286.0, "otr": 0.089430894, "perishable": 0.734976153, "non_perishable": 0.960554371, "in_store_time": 5.4887999999999995, "out_store_time": 24.8616}, {"date": "2026-06-20", "sales": 195861.8, "orders": 471.0, "otr": 0.434210526, "perishable": 0.882286698, "non_perishable": 0.963752665, "in_store_time": 4.8398, "out_store_time": 5.7683}, {"date": "2026-06-21", "sales": 164104.16, "orders": 378.0, "otr": 0.18079096, "perishable": 0.867986928, "non_perishable": 0.963617464, "in_store_time": 4.8397, "out_store_time": 26.2799}, {"date": "2026-06-22", "sales": 155785.08, "orders": 352.0, "otr": 0.701492537, "perishable": 0.811699346, "non_perishable": 0.967775468, "in_store_time": 3.1298999999999997, "out_store_time": 1.4021}, {"date": "2026-06-23", "sales": 124168.77, "orders": 292.0, "otr": 0.5, "perishable": 0.87979085, "non_perishable": 0.973140496, "in_store_time": 3.6471999999999998, "out_store_time": 6.8273}, {"date": "2026-06-24", "sales": 167776.14, "orders": 377.0, "otr": 0.616216216, "perishable": 0.917098039, "non_perishable": 0.960784314, "in_store_time": 3.5429, "out_store_time": 2.2149}, {"date": "2026-06-25", "sales": 150274.73, "orders": 372.0, "otr": 0.50273224, "perishable": 0.909019608, "non_perishable": 0.965944272, "in_store_time": 3.752, "out_store_time": 2.7214}, {"date": "2026-06-26", "sales": 203850.11, "orders": 450.0, "otr": 0.679458239, "perishable": 0.940261438, "non_perishable": 0.96292482, "in_store_time": 3.3783, "out_store_time": 2.2426}, {"date": "2026-06-27", "sales": 197062.41, "orders": 459.0, "otr": 0.653243848, "perishable": 0.924065359, "non_perishable": 0.943123061, "in_store_time": 3.4996, "out_store_time": 1.6815}, {"date": "2026-06-28", "sales": 249668.49, "orders": 570.0, "otr": 0.494604317, "perishable": 0.920405229, "non_perishable": 0.93285124, "in_store_time": 4.3675, "out_store_time": 4.6847}, {"date": "2026-06-29", "sales": 144407.54, "orders": 343.0, "otr": 0.636904762, "perishable": 0.936468008, "non_perishable": 0.946280992, "in_store_time": 3.3056, "out_store_time": 1.8979}, {"date": "2026-06-30", "sales": 194467.92, "orders": 362.0, "otr": 0.497175141, "perishable": 0.868240454, "non_perishable": 0.959835221, "in_store_time": 3.0272, "out_store_time": 3.6613}, {"date": "2026-07-01", "sales": 303658.18, "orders": 610.0, "otr": 0.343696028, "perishable": 0.863129809, "non_perishable": 0.934560327, "in_store_time": 4.014, "out_store_time": 9.0498}, {"date": "2026-07-02", "sales": 336265.8, "orders": 569.0, "otr": 0.52173913, "perishable": 0.835517498, "non_perishable": 0.911042945, "in_store_time": 10.5331, "out_store_time": 9.9236}, {"date": "2026-07-03", "sales": 231020.31, "orders": 503.0, "otr": 0.575510204, "perishable": 0.810424423, "non_perishable": 0.867075665, "in_store_time": 3.9793, "out_store_time": 2.0904}, {"date": "2026-07-04", "sales": 303430.27, "orders": 627.0, "otr": 0.66557377, "perishable": 0.83633656, "non_perishable": 0.8200409, "in_store_time": 3.7776, "out_store_time": 1.2566}, {"date": "2026-07-05", "sales": 291416.12, "orders": 668.0, "otr": 0.612055641, "perishable": 0.828257632, "non_perishable": 0.75485189, "in_store_time": 3.2486, "out_store_time": 1.7222}]}, {"store_id": "DS-IBMUM-MulundEast", "city": "Mumbai", "launch_date": "2026-06-19", "rows": [{"date": "2026-06-19", "sales": 4719.26, "orders": 11.0, "otr": 0.9, "perishable": 0.750582108, "non_perishable": 0.974654378, "in_store_time": 2.828, "out_store_time": 0.694}, {"date": "2026-06-20", "sales": 18383.36, "orders": 35.0, "otr": 0.9, "perishable": 0.984375, "non_perishable": 0.980414747, "in_store_time": 2.4158, "out_store_time": 0.4756}, {"date": "2026-06-21", "sales": 41733.05, "orders": 52.0, "otr": 0.795918367, "perishable": 0.856030083, "non_perishable": 0.967741935, "in_store_time": 2.7631, "out_store_time": 0.4846}, {"date": "2026-06-22", "sales": 38651.49, "orders": 54.0, "otr": 0.734693878, "perishable": 0.902202525, "non_perishable": 0.964285714, "in_store_time": 2.7458, "out_store_time": 1.0283}, {"date": "2026-06-23", "sales": 69802.83, "orders": 111.0, "otr": 0.356435644, "perishable": 0.938134741, "non_perishable": 0.950460829, "in_store_time": 2.4793000000000003, "out_store_time": 12.052}, {"date": "2026-06-24", "sales": 105512.07, "orders": 152.0, "otr": 0.364963504, "perishable": 0.827662656, "non_perishable": 0.853991597, "in_store_time": 3.2539, "out_store_time": 9.1375}, {"date": "2026-06-25", "sales": 95261.21, "orders": 139.0, "otr": 0.724137931, "perishable": 0.847575953, "non_perishable": 0.913361169, "in_store_time": 2.5666999999999995, "out_store_time": 0.6588}, {"date": "2026-06-26", "sales": 99377.36, "orders": 156.0, "otr": 0.714285714, "perishable": 0.875565611, "non_perishable": 0.886929461, "in_store_time": 2.4596, "out_store_time": 0.4584}, {"date": "2026-06-27", "sales": 104286.05, "orders": 164.0, "otr": 0.586666667, "perishable": 0.808420479, "non_perishable": 0.850931677, "in_store_time": 2.4668, "out_store_time": 2.1623}, {"date": "2026-06-28", "sales": 106870.92, "orders": 200.0, "otr": 0.739361702, "perishable": 0.824923747, "non_perishable": 0.836945304, "in_store_time": 2.7814, "out_store_time": 0.7175}, {"date": "2026-06-29", "sales": 89628.31, "orders": 131.0, "otr": 0.666666667, "perishable": 0.872320261, "non_perishable": 0.843137255, "in_store_time": 2.6049, "out_store_time": 0.4006}, {"date": "2026-06-30", "sales": 127384.63, "orders": 153.0, "otr": 0.420289855, "perishable": 0.86835512, "non_perishable": 0.822745902, "in_store_time": 2.8695, "out_store_time": 7.8296}, {"date": "2026-07-01", "sales": 112318.2, "orders": 155.0, "otr": 0.218045113, "perishable": 0.829192741, "non_perishable": 0.763747454, "in_store_time": 2.7421, "out_store_time": 17.7501}, {"date": "2026-07-02", "sales": 47806.37, "orders": 75.0, "otr": 0.105263158, "perishable": 0.811497326, "non_perishable": 0.770325203, "in_store_time": 4.514600000000001, "out_store_time": 37.253}, {"date": "2026-07-03", "sales": 58287.11, "orders": 45.0, "otr": null, "perishable": 0.860982373, "non_perishable": 0.74796748, "in_store_time": null, "out_store_time": null}, {"date": "2026-07-04", "sales": 67237.43, "orders": 60.0, "otr": 0.101694915, "perishable": 0.835362745, "non_perishable": 0.785786802, "in_store_time": 6.0473, "out_store_time": 26.9532}, {"date": "2026-07-05", "sales": 4907.69, "orders": 3.0, "otr": null, "perishable": 0.823039216, "non_perishable": 0.836548223, "in_store_time": null, "out_store_time": null}]}, {"store_id": "DS-IBMUM-Kashimira", "city": "Mumbai", "launch_date": "2026-07-04", "rows": [{"date": "2026-07-04", "sales": 31514.0, "orders": 71.0, "otr": 0.228571429, "perishable": 0.909912854, "non_perishable": 0.932297447, "in_store_time": 3.9928, "out_store_time": 27.2022}, {"date": "2026-07-05", "sales": 21539.64, "orders": 49.0, "otr": 0.159090909, "perishable": 0.906425543, "non_perishable": 0.887902331, "in_store_time": 3.6448, "out_store_time": 30.6989}]}, {"store_id": "DS-IBNOI-SanjayNagar", "city": "Noida", "launch_date": "2026-06-30", "rows": [{"date": "2026-06-30", "sales": 11969.12, "orders": 29.0, "otr": 0.62962963, "perishable": 0.898984172, "non_perishable": 0.995198079, "in_store_time": 2.7190000000000003, "out_store_time": 1.1941}, {"date": "2026-07-01", "sales": 36872.15, "orders": 91.0, "otr": 0.561797753, "perishable": 0.828719723, "non_perishable": 0.988066826, "in_store_time": 3.1367000000000003, "out_store_time": 3.7011}, {"date": "2026-07-02", "sales": 19442.88, "orders": 43.0, "otr": 0.575, "perishable": 0.655449156, "non_perishable": 0.976297968, "in_store_time": 5.0552, "out_store_time": 2.0694}, {"date": "2026-07-03", "sales": 41158.93, "orders": 95.0, "otr": 0.677419355, "perishable": 0.858914494, "non_perishable": 0.953125, "in_store_time": 2.6747, "out_store_time": 2.5844}, {"date": "2026-07-04", "sales": 44932.15, "orders": 113.0, "otr": 0.63963964, "perishable": 0.751111785, "non_perishable": 0.952279958, "in_store_time": 3.4722000000000004, "out_store_time": 1.1723}, {"date": "2026-07-05", "sales": 46782.47, "orders": 115.0, "otr": 0.570175439, "perishable": 0.894511825, "non_perishable": 0.97257384, "in_store_time": 2.9254000000000002, "out_store_time": 9.1461}]}, {"store_id": "DS-IBNOI-SuryaNagar", "city": "Noida", "launch_date": "2026-06-30", "rows": [{"date": "2026-06-30", "sales": 14950.39, "orders": 41.0, "otr": 0.585365854, "perishable": 0.966792717, "non_perishable": 0.996134021, "in_store_time": 2.3404000000000003, "out_store_time": 4.4852}, {"date": "2026-07-01", "sales": 87177.74, "orders": 236.0, "otr": 0.593073593, "perishable": 0.714313725, "non_perishable": 0.957854406, "in_store_time": 3.2496, "out_store_time": 12.9222}, {"date": "2026-07-02", "sales": 86457.73, "orders": 168.0, "otr": 0.858024691, "perishable": 0.4591586, "non_perishable": 0.92716763, "in_store_time": 10.3848, "out_store_time": 4.6388}, {"date": "2026-07-03", "sales": 86527.84, "orders": 175.0, "otr": 0.826589595, "perishable": 0.750862273, "non_perishable": 0.845898004, "in_store_time": 3.3147, "out_store_time": 0.7399}, {"date": "2026-07-04", "sales": 124990.08, "orders": 263.0, "otr": 0.696498054, "perishable": 0.770658985, "non_perishable": 0.836601307, "in_store_time": 3.8273, "out_store_time": 2.1879}, {"date": "2026-07-05", "sales": 128000.16, "orders": 243.0, "otr": 0.521008403, "perishable": 0.85035375, "non_perishable": 0.863157895, "in_store_time": 4.108, "out_store_time": 5.8171}]}, {"store_id": "DS-IBPUN-Kesnand", "city": "Pune", "launch_date": "2026-06-15", "rows": [{"date": "2026-06-15", "sales": 19916.24, "orders": 33.0, "otr": 0.818181818, "perishable": 0.825805322, "non_perishable": 0.993541442, "in_store_time": 2.3453, "out_store_time": 0.4278}, {"date": "2026-06-16", "sales": 48384.04, "orders": 91.0, "otr": 0.824324324, "perishable": 0.799731559, "non_perishable": 0.980624327, "in_store_time": 2.5381, "out_store_time": 0.3375}, {"date": "2026-06-17", "sales": 55502.93, "orders": 106.0, "otr": 0.760416667, "perishable": 0.710858909, "non_perishable": 0.935214211, "in_store_time": 2.4634, "out_store_time": 0.339}, {"date": "2026-06-18", "sales": 75015.99, "orders": 122.0, "otr": 0.855855856, "perishable": 0.807066993, "non_perishable": 0.964583333, "in_store_time": 2.3515, "out_store_time": 0.3425}, {"date": "2026-06-19", "sales": 75760.36, "orders": 130.0, "otr": 0.865546218, "perishable": 0.920465686, "non_perishable": 0.951092612, "in_store_time": 2.4572, "out_store_time": 0.3884}, {"date": "2026-06-20", "sales": 80446.1, "orders": 155.0, "otr": 0.826666667, "perishable": 0.916493056, "non_perishable": 0.939646202, "in_store_time": 2.2725, "out_store_time": 0.583}, {"date": "2026-06-21", "sales": 84778.93, "orders": 176.0, "otr": 0.863095238, "perishable": 0.865400327, "non_perishable": 0.961816305, "in_store_time": 2.0504, "out_store_time": 0.3571}, {"date": "2026-06-22", "sales": 73694.85, "orders": 160.0, "otr": 0.912751678, "perishable": 0.844965278, "non_perishable": 0.95252838, "in_store_time": 1.9081, "out_store_time": 0.3318}, {"date": "2026-06-23", "sales": 72778.13, "orders": 172.0, "otr": 0.855421687, "perishable": 0.866729245, "non_perishable": 0.940451745, "in_store_time": 1.8803, "out_store_time": 0.4229}, {"date": "2026-06-24", "sales": 75291.05, "orders": 181.0, "otr": 0.824561404, "perishable": 0.89505632, "non_perishable": 0.922051282, "in_store_time": 2.0180000000000002, "out_store_time": 1.0375}, {"date": "2026-06-25", "sales": 79653.97, "orders": 187.0, "otr": 0.87150838, "perishable": 0.843074004, "non_perishable": 0.908717949, "in_store_time": 1.7279, "out_store_time": 1.3175}, {"date": "2026-06-26", "sales": 82045.82, "orders": 185.0, "otr": 0.920454545, "perishable": 0.881267131, "non_perishable": 0.898461538, "in_store_time": 1.7206000000000001, "out_store_time": 0.2998}, {"date": "2026-06-27", "sales": 105352.4, "orders": 206.0, "otr": 0.868686869, "perishable": 0.910215054, "non_perishable": 0.87295082, "in_store_time": 2.067, "out_store_time": 0.2811}, {"date": "2026-06-28", "sales": 105942.31, "orders": 222.0, "otr": 0.880733945, "perishable": 0.889837655, "non_perishable": 0.866803279, "in_store_time": 2.0115, "out_store_time": 0.246}, {"date": "2026-06-29", "sales": 83124.35, "orders": 175.0, "otr": 0.928994083, "perishable": 0.919553975, "non_perishable": 0.867827869, "in_store_time": 1.6008, "out_store_time": 0.2728}, {"date": "2026-06-30", "sales": 77736.16, "orders": 170.0, "otr": 0.933333333, "perishable": 0.885925926, "non_perishable": 0.876151484, "in_store_time": 1.7216, "out_store_time": 0.252}, {"date": "2026-07-01", "sales": 129677.1, "orders": 233.0, "otr": 0.864864865, "perishable": 0.901145511, "non_perishable": 0.870314083, "in_store_time": 2.0087, "out_store_time": 0.2644}, {"date": "2026-07-02", "sales": 106841.14, "orders": 224.0, "otr": 0.854460094, "perishable": 0.930034722, "non_perishable": 0.885196375, "in_store_time": 5.87, "out_store_time": 0.9363}, {"date": "2026-07-03", "sales": 124286.7, "orders": 260.0, "otr": 0.756862745, "perishable": 0.894240196, "non_perishable": 0.889224572, "in_store_time": 2.3539, "out_store_time": 0.7861}, {"date": "2026-07-04", "sales": 144744.2, "orders": 291.0, "otr": 0.814285714, "perishable": 0.849336193, "non_perishable": 0.853977845, "in_store_time": 2.3507, "out_store_time": 0.3872}, {"date": "2026-07-05", "sales": 167763.67, "orders": 337.0, "otr": 0.608562691, "perishable": 0.812714461, "non_perishable": 0.863041289, "in_store_time": 2.7055000000000002, "out_store_time": 4.3886}]}], "flags": {"dropped_perf_stores": [], "no_data_stores": [], "unmatched_sla_names": ["BNKOL-Dumdum-South-BS1", "BNKOL-Taltala-BS1", "IBB-KOL-Kalighat-011-T1", "IBB-KOL-Madhyamgram-091-T1", "IBB-KOL-Rajarhat-032-T1", "IBB-KOL-Shapoorji-T1"]}, "open_items": {"opd_today_reference": "Defaults to the latest date present in the Performance file (not the real calendar date). The date filter lets you pick a different 'as of' end date yourself -- OPD then recalculates using that as the reference day. See OPEN ITEM #2 in generate_report.py.", "city_aggregation_method": "Sum-then-derive: Sales/Orders/OPD-inputs are summed across stores before deriving ratios. Rate metrics (OTR, Perishable, Non-Perishable, In-Store Time, Out-Store Time) have no finer-grained numerator/denominator in the source data, so city-level values are an Orders-weighted average across stores, not a plain average-of-percentages. See OPEN ITEM #3 in generate_report.py.", "pre_launch_data_handling": "Any Performance or SLA row dated before a store's Actual Launch Date is dropped entirely before any metric is computed (per manager instruction, 2026-07-06).", "city_merge": "Bengaluru-1 and Bengaluru-2 are shown merged as a single city, 'Bangalore1' (per your instruction, 2026-07-06). Confirm this is really meant to be permanent and not just for this reporting cycle."}};
+</script>
+<script>
+/* ---------------------------------------------------------------------- *
+ * Store Performance Dashboard -- client-side metric engine.
+ * One engine computes every number shown: the table, the KPI cards, the
+ * ticker and the CSV export all call the same functions below, so nothing
+ * can ever drift out of sync with what the date filter is currently set to.
+ * ---------------------------------------------------------------------- */
+
+const state = {
+  from: DATA.global_min_date,
+  to: DATA.global_max_date,
+  collapsed: new Set(),
+  search: "",
+  kpiFlipped: new Set(),
+  scoreOpen: new Set(),
+};
+
+const T = DATA.score_thresholds;
+function scoreStore(m){
+  if(!m.hasData) return null;
+  const otrOk = m.otr_period !== null && m.otr_period !== undefined && m.otr_period >= T.otr_min;
+  const periOk = m.perishable_period !== null && m.perishable_period !== undefined && m.perishable_period >= T.perishable_min;
+  const nonPeriOk = m.non_perishable_period !== null && m.non_perishable_period !== undefined && m.non_perishable_period >= T.non_perishable_min;
+  return {
+    otr: otrOk ? 1 : 0,
+    perishable: periOk ? 1 : 0,
+    non_perishable: nonPeriOk ? 1 : 0,
+    total: (otrOk?1:0) + (periOk?1:0) + (nonPeriOk?1:0),
+  };
+}
+
+const INR = v => "\u20b9" + Math.round(v).toLocaleString("en-IN");
+function fmt(value, kind){
+  if(value === null || value === undefined || Number.isNaN(value)) return "\u2014";
+  if(kind === "inr") return INR(value);
+  if(kind === "int") return Math.round(value).toLocaleString("en-IN");
+  if(kind === "pct") return (value*100).toFixed(1) + "%";
+  if(kind === "min") return value.toFixed(2) + "m";
+  return String(value);
+}
+function fmtPlain(value, digits){
+  if(value === null || value === undefined || Number.isNaN(value)) return "\u2014";
+  return value.toLocaleString("en-IN", {maximumFractionDigits: digits==null?1:digits});
+}
+function fmtDate(iso){
+  if(!iso) return "\u2014";
+  const d = new Date(iso + "T00:00:00");
+  return d.toLocaleDateString("en-GB", {day:"2-digit", month:"short", year:"numeric"});
+}
+function daysBetween(aIso, bIso){
+  const a = new Date(aIso + "T00:00:00"), b = new Date(bIso + "T00:00:00");
+  return Math.round((b - a) / 86400000);
+}
+function avg(arr){ return arr.length ? arr.reduce((a,b)=>a+b,0)/arr.length : null; }
+function sum(arr){ return arr.reduce((a,b)=>a+b,0); }
+
+/* ---- per-store metrics for the currently selected [from,to] range ---- */
+function computeStoreMetrics(store, fromStr, toStr){
+  const inRange = store.rows.filter(r => r.date >= fromStr && r.date <= toStr);
+  const perfRows = inRange.filter(r => r.sales !== null);
+
+  const base = { store_id: store.store_id, city: store.city, launch_date: store.launch_date };
+
+  if(perfRows.length === 0){
+    return Object.assign(base, { hasData:false });
+  }
+
+  const latest = perfRows[perfRows.length - 1];
+  const salesPeriod = sum(perfRows.map(r=>r.sales));
+  const ordersPeriod = sum(perfRows.map(r=>r.orders));
+  const salesLatest = latest.sales, ordersLatest = latest.orders;
+
+  const slaInRange = inRange.filter(r => r.in_store_time !== null);
+  const slaLatestRow = inRange.find(r => r.date === latest.date && r.in_store_time !== null);
+
+  // OPD: cumulative Orders since launch through the "To" date (ignores "From"
+  // -- OPD is inherently since-launch, not since an arbitrary window start).
+  const sinceLaunch = store.rows.filter(r => r.date >= store.launch_date && r.date <= toStr && r.sales !== null);
+  const ordersSinceLaunch = sum(sinceLaunch.map(r=>r.orders));
+  const daysSinceLaunch = Math.max(daysBetween(store.launch_date, toStr), 1);
+  const opd = ordersSinceLaunch / daysSinceLaunch;
+
+  return Object.assign(base, {
+    hasData: true,
+    latest_date: latest.date,
+    sales_period: salesPeriod, sales_latest: salesLatest,
+    orders_period: ordersPeriod, orders_latest: ordersLatest,
+    abv_period: ordersPeriod ? salesPeriod/ordersPeriod : 0,
+    abv_latest: ordersLatest ? salesLatest/ordersLatest : 0,
+    otr_period: avg(perfRows.map(r=>r.otr)), otr_latest: latest.otr,
+    perishable_period: avg(perfRows.map(r=>r.perishable)), perishable_latest: latest.perishable,
+    non_perishable_period: avg(perfRows.map(r=>r.non_perishable)), non_perishable_latest: latest.non_perishable,
+    in_store_period: slaInRange.length ? avg(slaInRange.map(r=>r.in_store_time)) : null,
+    in_store_latest: slaLatestRow ? slaLatestRow.in_store_time : null,
+    out_store_period: slaInRange.length ? avg(slaInRange.map(r=>r.out_store_time)) : null,
+    out_store_latest: slaLatestRow ? slaLatestRow.out_store_time : null,
+    opd, ordersSinceLaunch, daysSinceLaunch,
+  });
+}
+
+/* ---- city-level: sum-then-derive, orders-weighted average for rates ---- */
+function computeCityMetrics(storeMetricsList){
+  const withData = storeMetricsList.filter(m => m.hasData);
+  if(withData.length === 0) return null;
+
+  const salesPeriod = sum(withData.map(m=>m.sales_period));
+  const ordersPeriod = sum(withData.map(m=>m.orders_period));
+  const salesLatest = sum(withData.map(m=>m.sales_latest));
+  const ordersLatest = sum(withData.map(m=>m.orders_latest));
+  const ordersSinceLaunch = sum(withData.map(m=>m.ordersSinceLaunch));
+  const daysSinceLaunch = sum(withData.map(m=>m.daysSinceLaunch));
+
+  function wAvg(key){
+    const w = withData.map(m=>m.orders_period);
+    const totalW = sum(w);
+    if(totalW === 0) return avg(withData.map(m=>m[key]).filter(v=>v!==null&&v!==undefined));
+    let num = 0, denom = 0;
+    withData.forEach(m=>{
+      if(m[key] === null || m[key] === undefined) return;
+      num += m[key]*m.orders_period; denom += m.orders_period;
+    });
+    return denom ? num/denom : null;
+  }
+
+  return {
+    store_count: withData.length,
+    sales_period: salesPeriod, sales_latest: salesLatest,
+    orders_period: ordersPeriod, orders_latest: ordersLatest,
+    abv_period: ordersPeriod ? salesPeriod/ordersPeriod : 0,
+    abv_latest: ordersLatest ? salesLatest/ordersLatest : 0,
+    otr_period: wAvg("otr_period"), otr_latest: wAvg("otr_latest"),
+    perishable_period: wAvg("perishable_period"), perishable_latest: wAvg("perishable_latest"),
+    non_perishable_period: wAvg("non_perishable_period"), non_perishable_latest: wAvg("non_perishable_latest"),
+    in_store_period: wAvg("in_store_period"), in_store_latest: wAvg("in_store_latest"),
+    out_store_period: wAvg("out_store_period"), out_store_latest: wAvg("out_store_latest"),
+    opd: daysSinceLaunch ? ordersSinceLaunch/daysSinceLaunch : 0,
+  };
+}
+
+/* ------------------------------- rendering ------------------------------ */
+function allStoreMetrics(){
+  return DATA.stores.map(s => computeStoreMetrics(s, state.from, state.to));
+}
+
+function renderDateRangeLabel(){
+  const el = document.getElementById("dateRangeLabel");
+  const isFull = state.from === DATA.global_min_date && state.to === DATA.global_max_date;
+  el.innerHTML = `<b>${fmtDate(state.from)}</b><span class="arrow">\u2192</span><b>${fmtDate(state.to)}</b>` +
+    (isFull ? "" : ` <span class="custom-flag">custom range</span>`);
+}
+
+/* ---- chain-wide issue counts for the 3 top KPI cards ---- */
+function computeGlobalIssues(metrics){
+  // Denominator = the full store universe (e.g. 18), not just the stores
+  // that happen to have data in the current range -- a store without data
+  // simply isn't counted as failing, but it still counts toward the total.
+  const withData = metrics.filter(m=>m.hasData);
+  const scored = withData.map(m=>({store_id:m.store_id, city:m.city, s:scoreStore(m)}));
+  const issuesFor = key => scored.filter(x=>x.s[key]===0).map(x=>({store_id:x.store_id, city:x.city}));
+  return {
+    total: metrics.length,
+    otr: issuesFor("otr"),
+    perishable: issuesFor("perishable"),
+    non_perishable: issuesFor("non_perishable"),
+  };
+}
+
+function groupByCity(failingList){
+  const byCity = {};
+  failingList.forEach(f => { (byCity[f.city] = byCity[f.city]||[]).push(f.store_id); });
+  return Object.keys(byCity).sort().map(city =>
+    `<div class="kpi-city-group"><span class="kpi-city-name">${escapeHtml(city)} <b>(${byCity[city].length})</b></span>` +
+    `<div class="kpi-city-stores">${byCity[city].map(s=>`<span class="kpi-store-chip">${escapeHtml(s)}</span>`).join("")}</div></div>`
+  ).join("");
+}
+
+function issueKpiCard(id, color, color2, label, failingList, total, thresholdLabel){
+  const flipped = state.kpiFlipped.has(id) ? "flipped" : "";
+  const n = failingList.length;
+  const body = n ? groupByCity(failingList) : `<div class="kpi-city-group">All stores on target</div>`;
+  return `
+  <div class="kpi-card ${flipped}" data-kpi="${id}" style="--kpi-color:${color}; --kpi-color-2:${color2}">
+    <div class="kpi-flip">
+      <div class="kpi-face kpi-front">
+        <div class="kpi-top-row"><span class="kpi-label">${label}</span><span class="kpi-flag">${thresholdLabel}</span></div>
+        <div class="kpi-value">${n} / ${total}</div>
+        <div class="kpi-hint">store(s) below target this period &middot; click to see which, by city</div>
+      </div>
+      <div class="kpi-face kpi-back">
+        <div class="kpi-top-row"><span class="kpi-label">${label} \u2014 below target, by city</span></div>
+        <div class="kpi-hint" style="margin-top:2px; flex:1; overflow-y:auto;">${body}</div>
+        <div class="kpi-hint">click to flip back</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function noOfferKpiCard(id, color, color2, label, data){
+  const flipped = state.kpiFlipped.has(id) ? "flipped" : "";
+  const body = data.cities.length
+    ? data.cities.map(c=>`<div class="kpi-city-group"><span class="kpi-city-name">${escapeHtml(c)} <b>(${data.city_store_counts[c]})</b></span><div class="kpi-city-stores">${(data.city_store_ids[c]||[]).map(s=>`<span class="kpi-store-chip">${escapeHtml(s)}</span>`).join("")}</div></div>`).join("")
+    : `<div class="kpi-city-group">All stores have an active offer</div>`;
+  return `
+  <div class="kpi-card ${flipped}" data-kpi="${id}" style="--kpi-color:${color}; --kpi-color-2:${color2}">
+    <div class="kpi-flip">
+      <div class="kpi-face kpi-front">
+        <div class="kpi-top-row"><span class="kpi-label">${label}</span><span class="kpi-flag">${data.cities.length} ${data.cities.length===1?"city":"cities"}</span></div>
+        <div class="kpi-value">${data.store_count} / ${data.total_stores}</div>
+        <div class="kpi-hint">store(s) with a "No Offer Roll out" &middot; click to see which</div>
+      </div>
+      <div class="kpi-face kpi-back">
+        <div class="kpi-top-row"><span class="kpi-label">No Offer Rollout \u2014 by store</span></div>
+        <div class="kpi-hint" style="margin-top:2px; flex:1; overflow-y:auto;">${body}</div>
+        <div class="kpi-hint">click to flip back</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderKPIs(metrics){
+  const g = computeGlobalIssues(metrics);
+  const html = [
+    issueKpiCard("otr", "#2F6373", "#1F4A53", "OTR issues", g.otr, g.total, "target \u2265 50%"),
+    issueKpiCard("perishable", "#437F8C", "#2F6373", "Perishable issues", g.perishable, g.total, "target \u2265 88%"),
+    issueKpiCard("non_perishable", "#1F4A53", "#132F3D", "Non-Perishable issues", g.non_perishable, g.total, "target \u2265 92%"),
+    noOfferKpiCard("no_offer", "#5A9BA5", "#437F8C", "No Offer Rollout", DATA.no_offer_kpi),
+  ].join("");
+  document.getElementById("kpiRow").innerHTML = html;
+  document.querySelectorAll(".kpi-card").forEach(card=>{
+    card.addEventListener("click", ()=>{
+      const id = card.dataset.kpi;
+      if(state.kpiFlipped.has(id)) state.kpiFlipped.delete(id); else state.kpiFlipped.add(id);
+      card.classList.toggle("flipped");
+    });
+  });
+}
+
+const METRIC_DEFS = DATA.metric_defs;
+
+function metricHeaderCells(){
+  return `<th class="metric-head group-start"><div class="mh-name">OPD<span class="info-dot" data-tip="${escapeAttr(DATA.opd_tip)}">i</span></div>` +
+    `<div class="mh-sub"><span>&nbsp;</span><span>&nbsp;</span></div></th>` +
+    METRIC_DEFS.map(md =>
+      `<th class="metric-head group-start"><div class="mh-name">${md.label}<span class="info-dot" data-tip="${escapeAttr(md.tip)}">i</span></div>` +
+      `<div class="mh-sub"><span>FTD</span><span>MTD</span></div></th>`
+    ).join("");
+}
+
+function escapeAttr(s){ return (s||"").replace(/&/g,"&amp;").replace(/"/g,"&quot;"); }
+function escapeHtml(s){ return (s||"").replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;"); }
+
+function metricPairCell(m, key, kind, extraClass){
+  const p = m[key+"_period"], l = m[key+"_latest"];
+  return `<td class="metric-pair-cell ${extraClass||""}"><div class="metric-pair">
+    <span class="primary">${fmt(l,kind)}</span><span class="sep">/</span><span class="secondary">${fmt(p,kind)}</span>
+  </div></td>`;
+}
+
+function scoreBadgeCellHtml(store, m){
+  if(!m.hasData) return `<td class="score-cell">\u2014</td>`;
+  const s = scoreStore(m);
+  const parts = [
+    {label:"OTR", ok:s.otr, val:m.otr_period, min:T.otr_min},
+    {label:"Perishable", ok:s.perishable, val:m.perishable_period, min:T.perishable_min},
+    {label:"Non-Perishable", ok:s.non_perishable, val:m.non_perishable_period, min:T.non_perishable_min},
+  ];
+  const detailHtml = parts.map(p=>{
+    const cls = p.ok ? "ok" : "bad";
+    const mark = p.ok ? "\u2713" : "\u2717";
+    return `<div class="${cls}">${mark} ${p.label}: ${fmt(p.val,"pct")} (need \u2265 ${(p.min*100).toFixed(0)}%)</div>`;
+  }).join("");
+  const open = state.scoreOpen.has(store.store_id) ? "open" : "";
+  return `<td class="score-cell">
+    <span class="score-badge score-${s.total}" data-score-toggle="${escapeAttr(store.store_id)}"><span class="score-dot"></span>${s.total}/3</span>
+    <div class="score-detail ${open}" data-score-detail="${escapeAttr(store.store_id)}">${detailHtml}</div>
+  </td>`;
+}
+
+function cityRowHtml(city, cm, nStores, issues){
+  if(!cm) return "";
+  const cells = METRIC_DEFS.map(md => {
+    const failing = md.scored && issues && issues[md.scored] > 0;
+    return metricPairCell(cm, md.key, md.kind, failing ? "metric-fail" : "");
+  }).join("");
+  const cls = n => n > 0 ? "bad" : "ok";
+  const scoreSummary = issues
+    ? `<span class="${cls(issues.otr)}">OTR ${issues.otr}/${issues.total}</span> &middot; <span class="${cls(issues.perishable)}">Per ${issues.perishable}/${issues.total}</span> &middot; <span class="${cls(issues.non_perishable)}">NonP ${issues.non_perishable}/${issues.total}</span>`
+    : "\u2014";
+  return `<tr class="city-summary-row">
+    <td class="store-name">All of ${escapeHtml(city)}<span class="store-sub">${nStores} store(s) &middot; sum-then-derive <span class="info-dot" data-tip="${escapeAttr(DATA.city_row_tip)}">i</span></span></td>
+    <td class="score-cell" style="font-size:0.68rem;">${scoreSummary}</td>
+    <td class="ramp-cell">&nbsp;</td>
+    <td class="opd-cell"><div class="metric-pair"><div class="row-line"><span class="primary">${fmtPlain(cm.opd,1)}</span></div></div></td>
+    ${cells}
+  </tr>`;
+}
+
+function storeRowHtml(store, m){
+  const launchStr = fmtDate(store.launch_date);
+  if(!m.hasData){
+    const emptyCells = METRIC_DEFS.map(()=>`<td class="metric-pair-cell">\u2014</td>`).join("");
+    return `<tr class="store-row no-data" data-store="${escapeAttr(store.store_id.toLowerCase())}">
+      <td class="store-name">${escapeHtml(store.store_id)}<span class="store-sub">launched ${launchStr} \u2014 no data in this range</span></td>
+      <td class="score-cell">\u2014</td>
+      <td class="ramp-cell">&nbsp;</td>
+      <td class="opd-cell">\u2014</td>
+      ${emptyCells}
+    </tr>`;
+  }
+  const daysLive = m.daysSinceLaunch;
+  const rampPct = Math.min(daysLive/30, 1) * 100;
+  const s = scoreStore(m);
+  const cells = METRIC_DEFS.map(md => {
+    const failing = md.scored && s && s[md.scored] === 0;
+    return metricPairCell(m, md.key, md.kind, failing ? "metric-fail" : "");
+  }).join("");
+  return `<tr class="store-row" data-store="${escapeAttr(store.store_id.toLowerCase())}">
+    <td class="store-name">${escapeHtml(store.store_id)}<span class="store-sub">live ${daysLive}d &middot; launched ${launchStr} &middot; latest ${fmtDate(m.latest_date)}</span></td>
+    ${scoreBadgeCellHtml(store, m)}
+    <td class="ramp-cell"><div class="ramp-track"><div class="ramp-fill" style="width:${rampPct.toFixed(0)}%"></div></div><div class="ramp-label">${daysLive}d live</div></td>
+    <td class="opd-cell"><div class="metric-pair"><div class="row-line"><span class="primary">${fmtPlain(m.opd,1)}</span></div></div></td>
+    ${cells}
+  </tr>`;
+}
+
+function computeCityIssues(entries){
+  const withData = entries.filter(e=>e.m.hasData);
+  let otr=0, perishable=0, non_perishable=0;
+  withData.forEach(e=>{
+    const s = scoreStore(e.m);
+    if(s.otr===0) otr++;
+    if(s.perishable===0) perishable++;
+    if(s.non_perishable===0) non_perishable++;
+  });
+  return {otr, perishable, non_perishable, total: entries.length};
+}
+
+function renderCities(metrics){
+  const byCity = {};
+  DATA.stores.forEach((s,i) => { (byCity[s.city] = byCity[s.city]||[]).push({store:s, m:metrics[i]}); });
+
+  const cities = Object.keys(DATA.city_colors).sort();
+  const html = cities.map(city=>{
+    const color = DATA.city_colors[city];
+    const entries = byCity[city] || [];
+    const nStores = entries.length;
+    const cm = computeCityMetrics(entries.map(e=>e.m));
+    const issues = computeCityIssues(entries);
+    const collapsed = state.collapsed.has(city) ? "collapsed" : "";
+    const rows = entries.map(e => storeRowHtml(e.store, e.m)).join("");
+    return `
+    <div class="city-block ${collapsed}" data-city="${escapeAttr(city)}" style="--city-color:${color}; --city-color-dark:${DATA.city_colors_dark[city] || color}">
+      <button class="city-header" data-toggle="${escapeAttr(city)}">
+        <span class="chevron">\u25b8</span>
+        <span class="city-name">${escapeHtml(city)}</span>
+        <span class="city-count">${nStores} store${nStores!==1?"s":""}</span>
+        <span class="city-issue-mini" data-tip="${escapeAttr(DATA.score_tip)}">
+          <span class="${issues.otr?'':'clean'}">OTR <b>${issues.otr}</b></span>
+          <span class="${issues.perishable?'':'clean'}">Perishable <b>${issues.perishable}</b></span>
+          <span class="${issues.non_perishable?'':'clean'}">Non-Perishable <b>${issues.non_perishable}</b></span>
+        </span>
+      </button>
+      <div class="city-body">
+        <div class="table-scroll">
+          <table>
+            <thead><tr>
+              <th class="store-head">Store</th>
+              <th class="metric-head score-cell">Score<span class="info-dot" data-tip="${escapeAttr(DATA.score_tip)}">i</span></th>
+              <th class="metric-head ramp-cell">Days Live</th>
+              ${metricHeaderCells()}
+            </tr></thead>
+            <tbody>
+              ${cityRowHtml(city, cm, nStores, issues)}
+              ${rows}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>`;
+  }).join("");
+  document.getElementById("cityContainer").innerHTML = html;
+
+  document.querySelectorAll(".city-header").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      const city = btn.dataset.toggle;
+      if(state.collapsed.has(city)) state.collapsed.delete(city); else state.collapsed.add(city);
+      btn.closest(".city-block").classList.toggle("collapsed");
+    });
+  });
+  document.querySelectorAll("[data-score-toggle]").forEach(el=>{
+    el.addEventListener("click", ()=>{
+      const id = el.dataset.scoreToggle;
+      if(state.scoreOpen.has(id)) state.scoreOpen.delete(id); else state.scoreOpen.add(id);
+      const detail = el.parentElement.querySelector("[data-score-detail]");
+      if(detail) detail.classList.toggle("open");
+    });
+  });
+  applySearch();
+}
+
+function renderFooterFlags(){
+  const f = DATA.flags, items = [];
+  Object.values(DATA.open_items).forEach(v => items.push(`<li>${escapeHtml(v)}</li>`));
+  if(f.dropped_perf_stores.length) items.push(`<li>Performance rows dropped (no master match): ${f.dropped_perf_stores.map(escapeHtml).join(", ")}</li>`);
+  if(f.no_data_stores.length) items.push(`<li>Stores in the universe with zero usable rows after the launch-date filter: ${f.no_data_stores.map(escapeHtml).join(", ")}</li>`);
+  if(f.unmatched_sla_names.length) items.push(`<li>SLA rows dropped (sa_name didn't resolve to a store in the universe): ${f.unmatched_sla_names.map(escapeHtml).join(", ")}</li>`);
+  document.getElementById("flagItems").innerHTML = items.join("");
+}
+
+function renderAll(){
+  renderDateRangeLabel();
+  const metrics = allStoreMetrics();
+  renderKPIs(metrics);
+  renderCities(metrics);
+}
+
+/* ------------------------------- controls -------------------------------- */
+function applySearch(){
+  const q = state.search.trim().toLowerCase();
+  document.querySelectorAll("tr.store-row").forEach(row=>{
+    const match = !q || row.dataset.store.includes(q);
+    row.classList.toggle("hidden-by-search", !match);
+  });
+  if(q){
+    document.querySelectorAll(".city-block").forEach(block=>{
+      const anyVisible = [...block.querySelectorAll("tr.store-row")].some(r=>!r.classList.contains("hidden-by-search"));
+      block.style.display = anyVisible ? "" : "none";
+      if(anyVisible) block.classList.remove("collapsed");
+    });
+  } else {
+    document.querySelectorAll(".city-block").forEach(block=>{ block.style.display = ""; });
+  }
+}
+
+function exportCsv(){
+  const metrics = allStoreMetrics();
+  const byCity = {};
+  DATA.stores.forEach((s,i) => { (byCity[s.city] = byCity[s.city]||[]).push({store:s, m:metrics[i]}); });
+
+  const metricCols = [];
+  METRIC_DEFS.forEach(md => { metricCols.push(md.label+" FTD"); metricCols.push(md.label+" MTD"); });
+  const header = ["City","Store","Row Type","Launch Date","Latest Date With Data","Days Live","Score /3","OPD", ...metricCols];
+  const rows = [header];
+
+  Object.keys(DATA.city_colors).sort().forEach(city=>{
+    const entries = byCity[city] || [];
+    const cm = computeCityMetrics(entries.map(e=>e.m));
+    const issues = computeCityIssues(entries);
+    if(cm){
+      const row = [city, `All of ${city}`, "City Summary", "", "", "",
+        `OTR ok ${issues.total-issues.otr}/${issues.total}; Per ok ${issues.total-issues.perishable}/${issues.total}; NonP ok ${issues.total-issues.non_perishable}/${issues.total}`,
+        Number(fmtPlain(cm.opd,2))];
+      METRIC_DEFS.forEach(md=>{ row.push(cm[md.key+"_latest"] ?? ""); row.push(cm[md.key+"_period"] ?? ""); });
+      rows.push(row);
+    }
+    entries.forEach(({store,m})=>{
+      if(!m.hasData){
+        const row = [city, store.store_id, "Store", store.launch_date, "", "", "", ""];
+        METRIC_DEFS.forEach(()=>{ row.push(""); row.push(""); });
+        rows.push(row);
+        return;
+      }
+      const s = scoreStore(m);
+      const row = [city, store.store_id, "Store", store.launch_date, m.latest_date, m.daysSinceLaunch, `${s.total}/3`, Number(m.opd.toFixed(2))];
+      METRIC_DEFS.forEach(md=>{ row.push(m[md.key+"_latest"] ?? ""); row.push(m[md.key+"_period"] ?? ""); });
+      rows.push(row);
+    });
+  });
+
+  const ws = XLSX.utils.aoa_to_sheet(rows);
+  ws["!cols"] = header.map((h,i) => ({ wch: i===1 ? 22 : Math.max(10, h.length + 2) }));
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, "Store Performance");
+  XLSX.writeFile(wb, `store_performance_mtd_${state.from}_to_${state.to}.xlsx`);
+}
+
+/* ------------------------------- tooltip --------------------------------- */
+const tipBox = document.getElementById("tooltipBox");
+document.addEventListener("mouseover", e=>{
+  const el = e.target.closest("[data-tip]");
+  if(!el) return;
+  tipBox.textContent = el.getAttribute("data-tip");
+  tipBox.classList.add("show");
+  positionTip(e);
+});
+document.addEventListener("mousemove", e=>{
+  if(tipBox.classList.contains("show")) positionTip(e);
+});
+document.addEventListener("mouseout", e=>{
+  if(e.target.closest("[data-tip]")) tipBox.classList.remove("show");
+});
+function positionTip(e){
+  const pad = 14;
+  let x = e.clientX + pad, y = e.clientY + pad;
+  const boxW = 280, boxH = 90;
+  if(x + boxW > window.innerWidth) x = e.clientX - boxW - pad;
+  if(y + boxH > window.innerHeight) y = e.clientY - boxH - pad;
+  tipBox.style.left = x + "px";
+  tipBox.style.top = y + "px";
+}
+
+/* --------------------------------- init ----------------------------------- */
+document.getElementById("fromDate").value = state.from;
+document.getElementById("fromDate").min = DATA.global_min_date;
+document.getElementById("fromDate").max = DATA.global_max_date;
+document.getElementById("toDate").value = state.to;
+document.getElementById("toDate").min = DATA.global_min_date;
+document.getElementById("toDate").max = DATA.global_max_date;
+
+document.getElementById("applyRangeBtn").addEventListener("click", ()=>{
+  const f = document.getElementById("fromDate").value;
+  const t = document.getElementById("toDate").value;
+  if(!f || !t){ alert("Pick both a \"From\" and a \"To\" date."); return; }
+  if(f > t){ alert("\"From\" must be on or before \"To\"."); return; }
+  state.from = f; state.to = t;
+  renderAll();
+});
+document.getElementById("resetRangeBtn").addEventListener("click", ()=>{
+  state.from = DATA.global_min_date;
+  state.to = DATA.global_max_date;
+  document.getElementById("fromDate").value = state.from;
+  document.getElementById("toDate").value = state.to;
+  renderAll();
+});
+document.getElementById("storeFilter").addEventListener("input", e=>{
+  state.search = e.target.value;
+  applySearch();
+});
+document.getElementById("expandAllBtn").addEventListener("click", ()=>{
+  state.collapsed.clear();
+  document.querySelectorAll(".city-block").forEach(b=>b.classList.remove("collapsed"));
+});
+document.getElementById("collapseAllBtn").addEventListener("click", ()=>{
+  document.querySelectorAll(".city-block").forEach(b=>{ b.classList.add("collapsed"); state.collapsed.add(b.dataset.city); });
+});
+document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
+
+renderFooterFlags();
+renderAll();
+</script>
+</body>
+</html>
