@@ -619,7 +619,7 @@ function cityRowHtml(city, cm, nStores, issues){
     <td class="store-name">All of ${escapeHtml(city)}<span class="store-sub">${nStores} store(s) &middot; sum-then-derive <span class="info-dot" data-tip="${escapeAttr(DATA.city_row_tip)}">i</span></span></td>
     <td class="score-cell" style="font-size:0.68rem;">${scoreSummary}</td>
     <td class="ramp-cell">&nbsp;</td>
-    <td class="opd-cell"><div class="metric-pair"><div class="row-line"><span class="primary">${fmtPlain(cm.opd,1)}</span></div></div></td>
+    <td class="opd-cell"><div class="metric-pair"><div class="row-line"><span class="primary">${fmtPlain(cm.opd,0)}</span></div></div></td>
     ${cells}
   </tr>`;
 }
@@ -647,7 +647,7 @@ function storeRowHtml(store, m){
     <td class="store-name">${escapeHtml(store.store_id)}<span class="store-sub">live ${daysLive}d &middot; launched ${launchStr} &middot; latest ${fmtDate(m.latest_date)}</span></td>
     ${scoreBadgeCellHtml(store, m)}
     <td class="ramp-cell"><div class="ramp-track"><div class="ramp-fill" style="width:${rampPct.toFixed(0)}%"></div></div><div class="ramp-label">${daysLive}d live</div></td>
-    <td class="opd-cell"><div class="metric-pair"><div class="row-line"><span class="primary">${fmtPlain(m.opd,1)}</span></div></div></td>
+    <td class="opd-cell"><div class="metric-pair"><div class="row-line"><span class="primary">${fmtPlain(m.opd,0)}</span></div></div></td>
     ${cells}
   </tr>`;
 }
