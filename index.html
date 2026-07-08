@@ -9,6 +9,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
 <style>
   :root{
     --bg:#EFF7F6;
@@ -91,6 +92,8 @@
   .download-image-btn:active{transform:translateY(1px);}
   .download-image-btn:disabled{opacity:0.6; cursor:wait;}
   .dl-icon{font-size:0.95rem; line-height:1;}
+  .download-group{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .download-label{font-size:0.68rem; color:var(--text-faint); text-transform:uppercase; letter-spacing:0.03em; font-family:'IBM Plex Mono', monospace;}
   .meta b{color:var(--text);}
 
   main{max-width:1520px; margin:0 auto; padding:22px 24px 24px;}
@@ -298,9 +301,15 @@
     </div>
     <div class="header-right">
       <div class="meta"><b>18</b> stores across <b>8</b> cities</div>
-      <button id="downloadImageBtn" class="download-image-btn">
-        <span class="dl-icon">&#8681;</span> Download dashboard image
-      </button>
+      <div class="download-group">
+        <span class="download-label">Download dashboard:</span>
+        <button id="downloadImageBtn" class="download-image-btn">
+          <span class="dl-icon">&#8681;</span> Image
+        </button>
+        <button id="downloadPdfBtn" class="download-image-btn">
+          <span class="dl-icon">&#8681;</span> PDF
+        </button>
+      </div>
     </div>
   </div>
 </header>
@@ -900,25 +909,63 @@ document.getElementById("collapseAllBtn").addEventListener("click", ()=>{
 document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
 
 // ------------------------------------------------------------------ //
-// Download dashboard image -- client-side, no Python/Playwright needed.
-// Captures exactly what's currently on screen (your current filter/expand
-// state), at high resolution so it stays crisp even when zoomed in later.
+// Download dashboard as Image (PNG) or PDF -- client-side, no
+// Python/Playwright needed. Captures exactly what's currently on screen
+// (your current filter/expand state), at high resolution so it stays
+// crisp even when zoomed in later.
+// ------------------------------------------------------------------ //
+
+// html2canvas does not understand CSS 3D transforms (perspective,
+// rotateY, backface-visibility) -- the KPI cards use exactly that for
+// their flip animation, so a naive capture renders the hidden face
+// mirrored on top of the visible one. Fix: for the duration of the
+// capture, kill the 3D rotation on every .kpi-flip and hide whichever
+// face (.kpi-front / .kpi-back) isn't the one currently showing, so
+// html2canvas only ever sees one flat, correctly-oriented face per card.
+function _neutralizeKpiFlipForCapture(){
+  const restoreFns = [];
+  document.querySelectorAll(".kpi-card").forEach(card => {
+    const flip = card.querySelector(".kpi-flip");
+    const front = card.querySelector(".kpi-front");
+    const back = card.querySelector(".kpi-back");
+    if (!flip || !front || !back) return;
+    const isFlipped = card.classList.contains("flipped");
+
+    const prevFlipTransform = flip.style.transform;
+    const prevFrontDisplay = front.style.display;
+    const prevBackDisplay = back.style.display;
+    const prevBackTransform = back.style.transform;
+
+    flip.style.transform = "none";       // kill the parent rotateY(180deg)
+    if (isFlipped) {
+      front.style.display = "none";
+      back.style.transform = "none";      // kill the back face's own baked-in mirror
+    } else {
+      back.style.display = "none";
+    }
+
+    restoreFns.push(() => {
+      flip.style.transform = prevFlipTransform;
+      front.style.display = prevFrontDisplay;
+      back.style.display = prevBackDisplay;
+      back.style.transform = prevBackTransform;
+    });
+  });
+  return () => restoreFns.forEach(fn => fn());
+}
+
 // Temporarily removes the same clipping culprits as generate_screenshot.py
 // (.table-scroll horizontal scroll, .city-block/.city-body overflow) so no
-// column or row gets cut off, then restores everything afterward -- your
-// live view is untouched once the download finishes.
-// ------------------------------------------------------------------ //
-async function downloadDashboardImage(){
-  const btn = document.getElementById("downloadImageBtn");
-  const originalHtml = btn.innerHTML;
-  btn.disabled = true;
-  btn.innerHTML = "Rendering\u2026";
-
-  const footer = document.querySelector("footer");
-  const footerPrevDisplay = footer ? footer.style.display : "";
-  if (footer) footer.style.display = "none";
-
+// column or row gets cut off, and hides the footer (internal notes, not
+// meant for a shared image/PDF). Returns a restore function.
+function _removeClippingForCapture(){
   const restoreFns = [];
+  const footer = document.querySelector("footer");
+  if (footer) {
+    const prev = footer.style.display;
+    footer.style.display = "none";
+    restoreFns.push(() => { footer.style.display = prev; });
+  }
   document.querySelectorAll(".table-scroll").forEach(el => {
     const prev = el.style.overflowX;
     el.style.overflowX = "visible";
@@ -935,40 +982,78 @@ async function downloadDashboardImage(){
     el.style.maxHeight = "none";
     restoreFns.push(() => { el.style.overflow = prevOverflow; el.style.maxHeight = prevMaxHeight; });
   });
+  return () => restoreFns.forEach(fn => fn());
+}
 
-  // Let the layout settle after the overflow/max-height changes above
-  // before html2canvas measures the page.
+function _dashboardFilenameBase(){
+  const rangeLabel = (document.getElementById("dateRangeLabel")?.textContent || "")
+    .trim().replace(/[^\w]+/g, "_").replace(/^_+|_+$/g, "");
+  return `Store_Performance_Dashboard${rangeLabel ? "_" + rangeLabel : ""}`;
+}
+
+async function _captureDashboardCanvas(){
+  const restoreKpi = _neutralizeKpiFlipForCapture();
+  const restoreClipping = _removeClippingForCapture();
+  // Let layout settle after the style changes above before html2canvas measures the page.
   await new Promise(r => setTimeout(r, 150));
-
   try {
-    const canvas = await html2canvas(document.body, {
+    return await html2canvas(document.body, {
       backgroundColor: getComputedStyle(document.body).backgroundColor || "#f3f7f6",
       scale: 3,                                   // high-res: stays sharp even zoomed in
       useCORS: true,
       windowWidth: document.documentElement.scrollWidth,
       windowHeight: document.documentElement.scrollHeight,
     });
-
-    const rangeLabel = (document.getElementById("dateRangeLabel")?.textContent || "")
-      .trim().replace(/[^\w]+/g, "_").replace(/^_+|_+$/g, "");
-    const filename = `Store_Performance_Dashboard${rangeLabel ? "_" + rangeLabel : ""}.png`;
-
-    const link = document.createElement("a");
-    link.download = filename;
-    link.href = canvas.toDataURL("image/png", 1.0);   // PNG, no lossy compression
-    document.body.appendChild(link);
-    link.click();
-    link.remove();
-  } catch (err) {
-    alert("Couldn't generate the image: " + err.message);
   } finally {
-    restoreFns.forEach(fn => fn());
-    if (footer) footer.style.display = footerPrevDisplay;
+    restoreClipping();
+    restoreKpi();
+  }
+}
+
+async function _withButtonLoadingState(btn, label, fn){
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = label;
+  try {
+    await fn();
+  } catch (err) {
+    alert("Couldn't generate the file: " + err.message);
+  } finally {
     btn.disabled = false;
     btn.innerHTML = originalHtml;
   }
 }
-document.getElementById("downloadImageBtn").addEventListener("click", downloadDashboardImage);
+
+document.getElementById("downloadImageBtn").addEventListener("click", () => {
+  const btn = document.getElementById("downloadImageBtn");
+  _withButtonLoadingState(btn, "Rendering\u2026", async () => {
+    const canvas = await _captureDashboardCanvas();
+    const link = document.createElement("a");
+    link.download = _dashboardFilenameBase() + ".png";
+    link.href = canvas.toDataURL("image/png", 1.0);   // PNG, no lossy compression
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  });
+});
+
+document.getElementById("downloadPdfBtn").addEventListener("click", () => {
+  const btn = document.getElementById("downloadPdfBtn");
+  _withButtonLoadingState(btn, "Rendering\u2026", async () => {
+    const canvas = await _captureDashboardCanvas();
+    const { jsPDF } = window.jspdf;
+    // Page sized to exactly match the captured content (in px units) --
+    // one continuous page, no awkward mid-table page breaks.
+    const pdf = new jsPDF({
+      orientation: canvas.width >= canvas.height ? "landscape" : "portrait",
+      unit: "px",
+      format: [canvas.width, canvas.height],
+      hotfixes: ["px_scaling"],
+    });
+    pdf.addImage(canvas.toDataURL("image/png", 1.0), "PNG", 0, 0, canvas.width, canvas.height);
+    pdf.save(_dashboardFilenameBase() + ".pdf");
+  });
+});
 
 renderFooterFlags();
 renderAll();
