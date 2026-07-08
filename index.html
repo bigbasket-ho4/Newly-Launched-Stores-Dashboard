@@ -8,6 +8,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 <style>
   :root{
     --bg:#EFF7F6;
@@ -77,6 +78,19 @@
     padding:1px 7px; border-radius:999px; font-size:0.68rem; font-weight:600;
   }
   .meta{font-family:'IBM Plex Mono', monospace; font-size:0.78rem; color:var(--text-dim); text-align:right;}
+  .header-right{display:flex; flex-direction:column; align-items:flex-end; gap:8px;}
+  .download-image-btn{
+    display:flex; align-items:center; gap:6px;
+    background:var(--accent); color:#fff; border:1px solid var(--accent);
+    padding:8px 14px; border-radius:8px; font-size:0.78rem; font-weight:600;
+    cursor:pointer; font-family:inherit; white-space:nowrap;
+    box-shadow:0 1px 3px rgba(20,30,40,0.12);
+    transition:background 0.15s ease, transform 0.1s ease;
+  }
+  .download-image-btn:hover{background:var(--accent-2); border-color:var(--accent-2);}
+  .download-image-btn:active{transform:translateY(1px);}
+  .download-image-btn:disabled{opacity:0.6; cursor:wait;}
+  .dl-icon{font-size:0.95rem; line-height:1;}
   .meta b{color:var(--text);}
 
   main{max-width:1520px; margin:0 auto; padding:22px 24px 24px;}
@@ -267,6 +281,7 @@
     .kpi-row{grid-template-columns:1fr;}
     .top-row{flex-direction:column;}
     .meta{text-align:left;}
+    .header-right{align-items:flex-start; width:100%;}
     .controls{flex-direction:column; align-items:stretch;}
     .date-filter{border-right:none; border-bottom:1px solid var(--border); padding-right:0; padding-bottom:10px;}
     .btn-group{margin-left:0;}
@@ -281,7 +296,12 @@
       <div class="title-block"><h1>Newly Launched Store Performance <span>Dashboard</span></h1></div>
       <div id="dateRangeLabel"></div>
     </div>
-    <div class="meta"><b>18</b> stores across <b>8</b> cities</div>
+    <div class="header-right">
+      <div class="meta"><b>18</b> stores across <b>8</b> cities</div>
+      <button id="downloadImageBtn" class="download-image-btn">
+        <span class="dl-icon">&#8681;</span> Download dashboard image
+      </button>
+    </div>
   </div>
 </header>
 
@@ -878,6 +898,77 @@ document.getElementById("collapseAllBtn").addEventListener("click", ()=>{
   document.querySelectorAll(".city-block").forEach(b=>{ b.classList.add("collapsed"); state.collapsed.add(b.dataset.city); });
 });
 document.getElementById("exportCsvBtn").addEventListener("click", exportCsv);
+
+// ------------------------------------------------------------------ //
+// Download dashboard image -- client-side, no Python/Playwright needed.
+// Captures exactly what's currently on screen (your current filter/expand
+// state), at high resolution so it stays crisp even when zoomed in later.
+// Temporarily removes the same clipping culprits as generate_screenshot.py
+// (.table-scroll horizontal scroll, .city-block/.city-body overflow) so no
+// column or row gets cut off, then restores everything afterward -- your
+// live view is untouched once the download finishes.
+// ------------------------------------------------------------------ //
+async function downloadDashboardImage(){
+  const btn = document.getElementById("downloadImageBtn");
+  const originalHtml = btn.innerHTML;
+  btn.disabled = true;
+  btn.innerHTML = "Rendering\u2026";
+
+  const footer = document.querySelector("footer");
+  const footerPrevDisplay = footer ? footer.style.display : "";
+  if (footer) footer.style.display = "none";
+
+  const restoreFns = [];
+  document.querySelectorAll(".table-scroll").forEach(el => {
+    const prev = el.style.overflowX;
+    el.style.overflowX = "visible";
+    restoreFns.push(() => { el.style.overflowX = prev; });
+  });
+  document.querySelectorAll(".city-block").forEach(el => {
+    const prev = el.style.overflow;
+    el.style.overflow = "visible";
+    restoreFns.push(() => { el.style.overflow = prev; });
+  });
+  document.querySelectorAll(".city-body").forEach(el => {
+    const prevOverflow = el.style.overflow, prevMaxHeight = el.style.maxHeight;
+    el.style.overflow = "visible";
+    el.style.maxHeight = "none";
+    restoreFns.push(() => { el.style.overflow = prevOverflow; el.style.maxHeight = prevMaxHeight; });
+  });
+
+  // Let the layout settle after the overflow/max-height changes above
+  // before html2canvas measures the page.
+  await new Promise(r => setTimeout(r, 150));
+
+  try {
+    const canvas = await html2canvas(document.body, {
+      backgroundColor: getComputedStyle(document.body).backgroundColor || "#f3f7f6",
+      scale: 3,                                   // high-res: stays sharp even zoomed in
+      useCORS: true,
+      windowWidth: document.documentElement.scrollWidth,
+      windowHeight: document.documentElement.scrollHeight,
+    });
+
+    const rangeLabel = (document.getElementById("dateRangeLabel")?.textContent || "")
+      .trim().replace(/[^\w]+/g, "_").replace(/^_+|_+$/g, "");
+    const filename = `Store_Performance_Dashboard${rangeLabel ? "_" + rangeLabel : ""}.png`;
+
+    const link = document.createElement("a");
+    link.download = filename;
+    link.href = canvas.toDataURL("image/png", 1.0);   // PNG, no lossy compression
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+  } catch (err) {
+    alert("Couldn't generate the image: " + err.message);
+  } finally {
+    restoreFns.forEach(fn => fn());
+    if (footer) footer.style.display = footerPrevDisplay;
+    btn.disabled = false;
+    btn.innerHTML = originalHtml;
+  }
+}
+document.getElementById("downloadImageBtn").addEventListener("click", downloadDashboardImage);
 
 renderFooterFlags();
 renderAll();
