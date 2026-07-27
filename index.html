@@ -28,6 +28,7 @@
     --danger-dark:#7F1D1D;
     --warn:#CA8A04;
     --good:#16A34A;
+    --darkest-green:#022C22;
   }
   *{box-sizing:border-box;}
   @media (prefers-reduced-motion: reduce){
@@ -215,7 +216,7 @@
   .store-head{position:sticky; left:0; z-index:5; background:var(--surface-2); min-width:225px;}
   th.group-start{border-left:1px solid var(--border);}
   .mh-name{font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; display:flex; align-items:center; gap:5px;}
-  .mh-sub{display:flex; gap:16px; font-family:'IBM Plex Mono', monospace; font-size:0.63rem; color:var(--text-dim); font-weight:600; margin-top:5px;}
+  .mh-sub{display:flex; gap:16px; font-family:'IBM Plex Mono', monospace; font-size:0.63rem; color:var(--darkest-green); font-weight:800; margin-top:5px;}
   .mh-sub span{min-width:46px;}
   .mh-sub-single{justify-content:center;}
   .mh-sub-single span{min-width:auto;}
@@ -236,9 +237,14 @@
   .modal-close{background:none; border:none; font-size:1.5rem; line-height:1; color:var(--text-faint); cursor:pointer; padding:2px 8px; border-radius:6px;}
   .modal-close:hover{color:var(--text); background:var(--surface-2);}
   .modal-body{padding:18px 22px; overflow-y:auto;}
-  .modal-body .kpi-city-group + .kpi-city-group{margin-top:14px;}
-  .modal-body .kpi-city-name{color:var(--text);}
   .modal-body .kpi-store-chip{background:var(--surface-2); color:var(--text-dim); border:1px solid var(--border);}
+  .launch-wave-month + .launch-wave-month{margin-top:18px; padding-top:16px; border-top:1px solid var(--border);}
+  .launch-wave-month-title{font-family:'Space Grotesk', sans-serif; font-weight:700; font-size:0.88rem; color:var(--text);}
+  .launch-wave-month-title b{color:var(--text-dim); font-weight:600;}
+  .launch-wave-city-group{margin-top:10px; padding-left:2px;}
+  .launch-wave-city-group + .launch-wave-city-group{margin-top:10px;}
+  .launch-wave-city-name{font-size:0.72rem; font-weight:700; color:var(--accent-2); text-transform:uppercase; letter-spacing:0.03em;}
+  .launch-wave-city-name b{color:var(--text-dim); font-weight:600; text-transform:none; letter-spacing:0;}
 
   tbody tr.store-row{border-bottom:1px solid var(--border); background:var(--surface);}
   tbody tr.store-row:nth-child(even){background:var(--surface-2);}
@@ -933,9 +939,12 @@ document.getElementById("storeFilter").addEventListener("input", e=>{
 });
 // ------------------------------------------------------------------ //
 // Launch Wave -- groups every store by the calendar month of its own
-// Actual Launch Date (master file), independent of the date filter and
-// of city. Granularity: Month -> Stores. Purely a read-only grouped
-// view of static launch_date data -- doesn't touch any metric math.
+// Actual Launch Date (master file), then by City within that month.
+// Granularity: Month -> City -> Stores. Everything -- months, cities
+// within a month, and stores within a city -- is sorted strictly by
+// launch date, oldest to newest (never alphabetically first). Purely
+// a read-only grouped view of static launch_date data -- doesn't touch
+// any metric math.
 // ------------------------------------------------------------------ //
 const _LAUNCH_WAVE_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
 function _launchWaveMonthKey(iso){
@@ -946,23 +955,44 @@ function _launchWaveMonthLabel(key){
   const [y,m] = key.split("-");
   return `${_LAUNCH_WAVE_MONTHS[parseInt(m,10)-1]} ${y}`;
 }
+function _byLaunchDateThenStoreId(a, b){
+  return (a.launch_date||"").localeCompare(b.launch_date||"") || a.store_id.localeCompare(b.store_id);
+}
 function renderLaunchWave(){
+  // Month -> City -> [stores], oldest launch date to newest throughout.
   const byMonth = {};
   DATA.stores.forEach(s=>{
     const key = _launchWaveMonthKey(s.launch_date);
     (byMonth[key] = byMonth[key] || []).push(s);
   });
-  const sortedKeys = Object.keys(byMonth).sort(); // "YYYY-MM" sorts chronologically; "unknown" sorts last
-  const html = sortedKeys.map(key=>{
-    const stores = byMonth[key].slice().sort((a,b)=>
-      (a.launch_date||"").localeCompare(b.launch_date||"") || a.store_id.localeCompare(b.store_id));
-    const chips = stores.map(s=>
-      `<span class="kpi-store-chip" title="${escapeAttr(fmtDate(s.launch_date))} \u00b7 ${escapeAttr(s.city)}">${escapeHtml(s.store_id)}</span>`
-    ).join("");
-    return `<div class="kpi-city-group"><span class="kpi-city-name">${escapeHtml(_launchWaveMonthLabel(key))} <b>(${stores.length} store${stores.length===1?"":"s"})</b></span>` +
-      `<div class="kpi-city-stores">${chips}</div></div>`;
+  const sortedMonthKeys = Object.keys(byMonth).sort(); // "YYYY-MM" sorts oldest-to-newest; "unknown" sorts last
+
+  const html = sortedMonthKeys.map(monthKey=>{
+    const monthStores = byMonth[monthKey];
+
+    const byCity = {};
+    monthStores.forEach(s=>{ (byCity[s.city] = byCity[s.city]||[]).push(s); });
+
+    // Order cities by the earliest launch date among their stores in this
+    // month (oldest first), not alphabetically.
+    const cityBlocks = Object.keys(byCity)
+      .map(city=>{
+        const stores = byCity[city].slice().sort(_byLaunchDateThenStoreId);
+        return {city, stores, earliest: stores[0].launch_date || ""};
+      })
+      .sort((a,b)=> a.earliest.localeCompare(b.earliest) || a.city.localeCompare(b.city))
+      .map(({city, stores})=>{
+        const chips = stores.map(s=>
+          `<span class="kpi-store-chip" title="${escapeAttr(fmtDate(s.launch_date))}">${escapeHtml(s.store_id)}</span>`
+        ).join("");
+        return `<div class="launch-wave-city-group"><span class="launch-wave-city-name">${escapeHtml(city)} <b>(${stores.length} store${stores.length===1?"":"s"})</b></span>` +
+          `<div class="kpi-city-stores">${chips}</div></div>`;
+      }).join("");
+
+    return `<div class="launch-wave-month"><div class="launch-wave-month-title">${escapeHtml(_launchWaveMonthLabel(monthKey))} <b>(${monthStores.length} store${monthStores.length===1?"":"s"})</b></div>${cityBlocks}</div>`;
   }).join("");
-  document.getElementById("launchWaveContent").innerHTML = html || `<div class="kpi-city-group">No stores found.</div>`;
+
+  document.getElementById("launchWaveContent").innerHTML = html || `<div class="launch-wave-month">No stores found.</div>`;
 }
 function openLaunchWave(){
   renderLaunchWave();
