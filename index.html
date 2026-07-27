@@ -215,7 +215,7 @@
   .store-head{position:sticky; left:0; z-index:5; background:var(--surface-2); min-width:225px;}
   th.group-start{border-left:1px solid var(--border);}
   .mh-name{font-family:'Space Grotesk', sans-serif; font-weight:600; font-size:0.7rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:0.04em; display:flex; align-items:center; gap:5px;}
-  .mh-sub{display:flex; gap:16px; font-family:'IBM Plex Mono', monospace; font-size:0.63rem; color:var(--text-faint); margin-top:5px;}
+  .mh-sub{display:flex; gap:16px; font-family:'IBM Plex Mono', monospace; font-size:0.63rem; color:var(--text-dim); font-weight:600; margin-top:5px;}
   .mh-sub span{min-width:46px;}
   .mh-sub-single{justify-content:center;}
   .mh-sub-single span{min-width:auto;}
@@ -225,6 +225,20 @@
     cursor:help; flex-shrink:0;
   }
   .info-dot:hover{background:var(--accent); color:#fff;}
+
+  /* launch wave modal */
+  .modal-overlay{display:none; position:fixed; inset:0; background:rgba(15,30,36,0.45); z-index:50; align-items:center; justify-content:center; padding:24px;}
+  .modal-overlay.open{display:flex;}
+  .modal-box{background:var(--surface); border:1px solid var(--border); border-radius:14px; max-width:760px; width:100%; max-height:82vh; display:flex; flex-direction:column; box-shadow:0 12px 40px rgba(15,30,36,0.25);}
+  .modal-header{display:flex; align-items:flex-start; justify-content:space-between; gap:12px; padding:18px 22px; border-bottom:1px solid var(--border);}
+  .modal-header h2{font-family:'Space Grotesk', sans-serif; font-size:1.05rem; color:var(--text); margin:0;}
+  .modal-sub{font-size:0.74rem; color:var(--text-dim); margin-top:3px;}
+  .modal-close{background:none; border:none; font-size:1.5rem; line-height:1; color:var(--text-faint); cursor:pointer; padding:2px 8px; border-radius:6px;}
+  .modal-close:hover{color:var(--text); background:var(--surface-2);}
+  .modal-body{padding:18px 22px; overflow-y:auto;}
+  .modal-body .kpi-city-group + .kpi-city-group{margin-top:14px;}
+  .modal-body .kpi-city-name{color:var(--text);}
+  .modal-body .kpi-store-chip{background:var(--surface-2); color:var(--text-dim); border:1px solid var(--border);}
 
   tbody tr.store-row{border-bottom:1px solid var(--border); background:var(--surface);}
   tbody tr.store-row:nth-child(even){background:var(--surface-2);}
@@ -333,6 +347,7 @@
       <input type="text" id="storeFilter" placeholder="Type a store name...">
     </div>
     <div class="btn-group">
+      <button id="launchWaveBtn">Launch Wave</button>
       <button id="expandAllBtn">Expand all</button>
       <button id="collapseAllBtn">Collapse all</button>
       <button class="primary" id="exportCsvBtn">Export Excel</button>
@@ -341,6 +356,19 @@
 
   <div id="cityContainer"></div>
 </main>
+
+<div id="launchWaveModal" class="modal-overlay">
+  <div class="modal-box">
+    <div class="modal-header">
+      <div>
+        <h2>Launch Wave</h2>
+        <div class="modal-sub">Stores grouped by the month they launched, earliest first</div>
+      </div>
+      <button id="launchWaveCloseBtn" class="modal-close" aria-label="Close">&times;</button>
+    </div>
+    <div class="modal-body" id="launchWaveContent"></div>
+  </div>
+</div>
 
 <footer>
   <h2>Reading the numbers</h2>
@@ -903,6 +931,55 @@ document.getElementById("storeFilter").addEventListener("input", e=>{
   state.search = e.target.value;
   applySearch();
 });
+// ------------------------------------------------------------------ //
+// Launch Wave -- groups every store by the calendar month of its own
+// Actual Launch Date (master file), independent of the date filter and
+// of city. Granularity: Month -> Stores. Purely a read-only grouped
+// view of static launch_date data -- doesn't touch any metric math.
+// ------------------------------------------------------------------ //
+const _LAUNCH_WAVE_MONTHS = ["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+function _launchWaveMonthKey(iso){
+  return iso ? iso.slice(0,7) : "unknown"; // "YYYY-MM"
+}
+function _launchWaveMonthLabel(key){
+  if(key === "unknown") return "Launch date unknown";
+  const [y,m] = key.split("-");
+  return `${_LAUNCH_WAVE_MONTHS[parseInt(m,10)-1]} ${y}`;
+}
+function renderLaunchWave(){
+  const byMonth = {};
+  DATA.stores.forEach(s=>{
+    const key = _launchWaveMonthKey(s.launch_date);
+    (byMonth[key] = byMonth[key] || []).push(s);
+  });
+  const sortedKeys = Object.keys(byMonth).sort(); // "YYYY-MM" sorts chronologically; "unknown" sorts last
+  const html = sortedKeys.map(key=>{
+    const stores = byMonth[key].slice().sort((a,b)=>
+      (a.launch_date||"").localeCompare(b.launch_date||"") || a.store_id.localeCompare(b.store_id));
+    const chips = stores.map(s=>
+      `<span class="kpi-store-chip" title="${escapeAttr(fmtDate(s.launch_date))} \u00b7 ${escapeAttr(s.city)}">${escapeHtml(s.store_id)}</span>`
+    ).join("");
+    return `<div class="kpi-city-group"><span class="kpi-city-name">${escapeHtml(_launchWaveMonthLabel(key))} <b>(${stores.length} store${stores.length===1?"":"s"})</b></span>` +
+      `<div class="kpi-city-stores">${chips}</div></div>`;
+  }).join("");
+  document.getElementById("launchWaveContent").innerHTML = html || `<div class="kpi-city-group">No stores found.</div>`;
+}
+function openLaunchWave(){
+  renderLaunchWave();
+  document.getElementById("launchWaveModal").classList.add("open");
+}
+function closeLaunchWave(){
+  document.getElementById("launchWaveModal").classList.remove("open");
+}
+document.getElementById("launchWaveBtn").addEventListener("click", openLaunchWave);
+document.getElementById("launchWaveCloseBtn").addEventListener("click", closeLaunchWave);
+document.getElementById("launchWaveModal").addEventListener("click", e=>{
+  if(e.target.id === "launchWaveModal") closeLaunchWave();
+});
+document.addEventListener("keydown", e=>{
+  if(e.key === "Escape") closeLaunchWave();
+});
+
 document.getElementById("expandAllBtn").addEventListener("click", ()=>{
   state.collapsed.clear();
   document.querySelectorAll(".city-block").forEach(b=>b.classList.remove("collapsed"));
