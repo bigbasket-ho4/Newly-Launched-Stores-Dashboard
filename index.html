@@ -489,7 +489,7 @@ function computeStoreMetrics(store, fromStr, toStr){
   const opdRangeStart = store.launch_date > fromStr ? store.launch_date : fromStr;
   const sinceLaunch = store.rows.filter(r => r.date >= opdRangeStart && r.date <= toStr && r.orders !== null);
   const ordersSinceLaunch = sum(sinceLaunch.map(r=>r.orders));
-  const daysSinceLaunch = Math.max(daysBetween(opdRangeStart, toStr), 1);
+  const daysSinceLaunch = Math.max(daysBetween(opdRangeStart, toStr) + 1, 1);
   const opdMtd = ordersSinceLaunch / daysSinceLaunch;
 
   return Object.assign(base, {
